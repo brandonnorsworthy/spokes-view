@@ -21,7 +21,7 @@ It is for one person and the agents working for him, on a home network.
 
 | Phase | Scope | Status |
 | --- | --- | --- |
-| **Phase 0, read-only viewer** | One Rust service serving the page and proxying the Spokes read API (0.2.0+); server list from the environment; radial graph with lazy branches, pan/zoom/fit, node appearance and legend, detail panel with notes and events, closed toggle, refresh and 30-second auto-refresh with 304s, server picker (URL + localStorage), clear loading/empty/unreachable/too-old states, phone layout; Docker image, CI, CodeQL, release to GHCR | **Done** (**current**: next is deploying it to the homelab) |
+| **Phase 0, read-only viewer** | One Rust service serving the page and proxying the Spokes read API (0.2.0+); server list from the environment; radial graph with lazy branches, pan/zoom/fit, node appearance and legend, detail panel with notes and events, closed toggle, refresh and 30-second auto-refresh with 304s, server picker (URL + localStorage), clear loading/empty/unreachable/too-old states, phone layout; Docker image, CI, CodeQL, release to GHCR | **Done** (deployed to the homelab 2026-11-15 as `0.1.0`) |
 | Phase 1, find things | Search and filter (by title, status, priority, due, claimed); jump to a node; deep links to a node | Not started |
 | Phase 2, edit from the UI | Status changes, add, move, focus, answer questions, through Spokes' write path | Not started |
 | Phase 3, access | Authentication, so it can be reached beyond the LAN | Not started |
