@@ -1,0 +1,98 @@
+# Build the spokes-view image and push it to GHCR.
+# Triggered by pushes to main (tags: latest + sha-<short>) and by v* tag pushes
+# (tags: X.Y.Z + sha-<short>). Release process: tag vX.Y.Z on a green main.
+#
+# Gating: the `release` job needs the reusable `ci` workflow (front-end checks, fmt, clippy, tests,
+# Docker build) to pass first. Only `release` gets `packages: write`.
+name: release
+
+on:
+  push:
+    branches: [main]
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.sha }}
+  cancel-in-progress: false
+
+jobs:
+  ci:
+    uses: ./.github/workflows/ci.yml
+
+  release:
+    needs: ci
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      - name: Log in to GHCR
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata (tags + labels)
+        id: meta
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
+        with:
+          images: ghcr.io/${{ github.repository_owner }}/spokes-view
+          tags: |
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=semver,pattern={{version}}
+            type=sha
+
+      - name: Build & push image
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          platforms: linux/amd64
+
+      # Every tag points at the same digest; scan the immutable sha-* one.
+      # metadata-action multi-line outputs can carry CRLF, so strip \r first.
+      - name: Pick a tag to scan
+        id: scantag
+        env:
+          TAGS: ${{ steps.meta.outputs.tags }}
+        run: |
+          cleaned=$(printf '%s\n' "$TAGS" | tr -d '\r')
+          ref=$(printf '%s\n' "$cleaned" | grep -m1 'sha-' || printf '%s\n' "$cleaned" | head -n1)
+          echo "ref=$ref" >> "$GITHUB_OUTPUT"
+          docker pull "$ref"
+
+      - name: Trivy scan (HIGH/CRITICAL, ignore-unfixed)
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: ${{ steps.scantag.outputs.ref }}
+          ignore-unfixed: true
+          format: table
+          output: trivy-report.txt
+          exit-code: "1"
+          severity: HIGH,CRITICAL
+          scanners: vuln,secret,misconfig
+
+      - name: Upload Trivy report
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: trivy-report
+          path: trivy-report.txt
+          if-no-files-found: ignore

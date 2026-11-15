@@ -1,0 +1,98 @@
+# CI for spokes-view: front-end checks, format check, clippy, tests and a non-pushing Docker build.
+# Also called by release.yml so a release only publishes what passed these checks.
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  schedule:
+    # Weekly sweep to catch upstream breakage when nobody is pushing
+    - cron: "17 3 * * 1"
+  workflow_call:
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  # Stable name so branch protection has one required status check to point at
+  ci:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # Full history so the version check can compare against the base branch
+          fetch-depth: 0
+
+      # Backs the version hook (.githooks/): a PR that changes code must change the version.
+      # Dependabot PRs are exempt (dependency-only merges are not bumped).
+      - name: Check the version was bumped
+        if: github.event_name == 'pull_request' && github.actor != 'dependabot[bot]'
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: .githooks/check-version-bump "origin/$BASE_REF" HEAD
+
+      - name: Review dependency changes
+        if: github.event_name == 'pull_request'
+        uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0
+
+      # The binary embeds web/dist, so the front-end checks and build run before cargo
+      - name: Set up Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 26
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install front-end dependencies
+        working-directory: web
+        run: npm ci
+
+      - name: Lint (ESLint)
+        working-directory: web
+        run: npm run lint
+
+      - name: Check formatting (Prettier)
+        working-directory: web
+        run: npm run format:check
+
+      - name: Type check (tsc)
+        working-directory: web
+        run: npm run typecheck
+
+      - name: Front-end tests (Vitest)
+        working-directory: web
+        run: npm test
+
+      - name: Build front-end (web/dist)
+        working-directory: web
+        run: npm run build
+
+      # rustup is preinstalled on the runner, so no third-party toolchain action
+      - name: Install Rust (stable, rustfmt, clippy)
+        run: |
+          rustup toolchain install stable --profile minimal --component rustfmt,clippy
+          rustup default stable
+          rustc --version
+
+      - name: Cache cargo registry and target
+        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+
+      - name: Check formatting
+        run: cargo fmt --all --check
+
+      # --locked: the committed Cargo.lock is the dependency set, a PR can't drift it
+      - name: Clippy (warnings as errors)
+        run: cargo clippy --locked --all-targets -- -D warnings
+
+      - name: Run tests
+        run: cargo test --locked
+
+      # Build the image without pushing so a broken Dockerfile fails the PR
+      - name: Build Docker image (no push)
+        run: docker build --tag spokes-view:ci --file Dockerfile .

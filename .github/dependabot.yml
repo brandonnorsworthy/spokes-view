@@ -1,0 +1,41 @@
+# Keep the dependency surface fresh and reviewed (see docs/public-repos.md)
+version: 2
+updates:
+  # Rust crates (Cargo.toml / Cargo.lock)
+  - package-ecosystem: "cargo"
+    directory: "/"
+    schedule:
+      interval: weekly
+    groups:
+      cargo-minor-patch:
+        update-types: ["minor", "patch"]
+    open-pull-requests-limit: 10
+
+  # Front-end packages (web/package.json / package-lock.json)
+  - package-ecosystem: "npm"
+    directory: "/web"
+    schedule:
+      interval: weekly
+    groups:
+      npm-minor-patch:
+        update-types: ["minor", "patch"]
+    open-pull-requests-limit: 10
+
+  # GitHub Actions (pinned to commit SHAs; Dependabot bumps the SHA and comment)
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: weekly
+    groups:
+      # codeql-action/init and analyze must move together
+      codeql-action:
+        patterns:
+          - "github/codeql-action/*"
+    open-pull-requests-limit: 10
+
+  # Docker base images (rust builder, distroless runtime)
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 10
