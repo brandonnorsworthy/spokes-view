@@ -1,6 +1,6 @@
 # spokes-view
 
-A read-only web view of a [Spokes](https://github.com/brandonnorsworthy/spokes) to-do tree: pick a Spokes server from a list and see its whole tree as a radial "spokes" graph in the browser, with no LLM or MCP client involved.
+A read-only web view of a [Spokes](https://github.com/ogl33t/spokes) to-do tree: pick a Spokes server from a list and see its whole tree as a radial "spokes" graph in the browser, with no LLM or MCP client involved.
 
 ## End goal
 
@@ -96,7 +96,7 @@ docker run -d --name spokes-view -p 8788:8788 \
   -e SPOKES_VIEW_SERVERS="Home=http://192.168.5.100:10050" spokes-view:dev
 ```
 
-The image is distroless (no shell), runs as uid 65532, has no volume (no state) and a `HEALTHCHECK` that runs `spokes-view healthcheck` (probes `/health` on `SPOKES_VIEW_BIND`). Ports and the server list are chosen by whoever deploys it (the compose file in `stacks/`), not by this repo.
+The image is distroless (no shell), runs as uid 65532, has no volume (no state) and a `HEALTHCHECK` that runs `spokes-view healthcheck` (probes `/health` on `SPOKES_VIEW_BIND`). Ports and the server list are chosen by whoever deploys it (the compose file in `stacks/`), not by this repo. This `ogl33t` fork of [brandonnorsworthy/spokes-view](https://github.com/brandonnorsworthy/spokes-view) is deployed from the `kdev3/spokes/` stack in [ogl33t/stacks](https://github.com/ogl33t/stacks).
 
 ## Development
 
@@ -130,7 +130,7 @@ cargo test --locked
 
 - `.github/workflows/ci.yml` (check name `ci`): `npm ci`, ESLint, Prettier, `tsc`, Vitest, the front-end build, `cargo fmt --check`, `cargo clippy -D warnings`, `cargo test --locked` and a non-pushing `docker build`, on every PR, push to `main` and weekly. On PRs: dependency review and the version-bump check.
 - `.github/workflows/codeql.yml`: CodeQL for Rust, JavaScript/TypeScript and the workflows, on PRs, `main` and weekly.
-- `.github/workflows/release.yml`: on push to `main` and on `v*` tags, reruns `ci`, then builds and pushes `ghcr.io/brandonnorsworthy/spokes-view` (`latest` and `sha-<short>` from `main`; `X.Y.Z` and `sha-<short>` from a tag) and scans it with Trivy (HIGH/CRITICAL fail the job).
+- `.github/workflows/release.yml`: on push to `main` and on `v*` tags, reruns `ci`, then builds and pushes `ghcr.io/ogl33t/spokes-view` (the image is named after the repo owner) (`latest` and `sha-<short>` from `main`; `X.Y.Z` and `sha-<short>` from a tag) and scans it with Trivy (HIGH/CRITICAL fail the job).
 - `.github/dependabot.yml`: weekly cargo, npm (`/web`), GitHub Actions and Docker base image updates. Actions are pinned to commit SHAs.
 
 Release process: push to `main`, wait for green, then tag that commit `vX.Y.Z` with the version it carries (written by the hooks) and push the tag.
