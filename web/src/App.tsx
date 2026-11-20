@@ -17,9 +17,11 @@ import {
   versionAtLeast,
   type TreeQuery,
 } from "./api";
+import { ContextMenu } from "./ContextMenu";
 import { DetailPanel, type DetailState } from "./DetailPanel";
 import { clock, spokeId } from "./format";
 import { Graph, type Glow } from "./Graph";
+import { kanbanUrl } from "./kanban";
 import { layoutRadial } from "./layout";
 import { Legend } from "./Legend";
 import { buildReplay, changes, describeStep, storeAt, type Replay } from "./replay";
@@ -159,6 +161,7 @@ export function App(): ReactElement {
   /** The node search last jumped to: centred once, and glowing for a moment. */
   const [found, setFound] = useState<{ id: number; key: number } | null>(null);
   const [glowing, setGlowing] = useState(false);
+  const [menu, setMenu] = useState<{ id: number; x: number; y: number } | null>(null);
 
   // The latest values, for async work that outlives a render.
   const slicesRef = useRef(slices);
@@ -541,6 +544,15 @@ export function App(): ReactElement {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
+  const openKanban = useCallback(
+    (id: number) => {
+      if (server) window.open(kanbanUrl(server, id), "_blank", "noopener");
+    },
+    [server],
+  );
+  const closeMenu = useCallback(() => setMenu(null), []);
+  const menuNode = menu ? store.nodes.get(menu.id) : undefined;
+
   const layout = useMemo(
     () =>
       layoutRadial(ROOT_ID, (id) => (expanded.has(id) ? knownChildren(store, id) : []), undefined),
@@ -687,6 +699,7 @@ export function App(): ReactElement {
           fitKey={fitKey}
           onSelect={select}
           onToggle={() => undefined}
+          onMenu={() => undefined}
           highlight={highlight}
           follow
           topInset={REPLAY_BAR_PX}
@@ -710,6 +723,7 @@ export function App(): ReactElement {
         onToggle={(id) => void toggle(id)}
         focusOn={found}
         highlight={glowFound}
+        onMenu={(id, x, y) => setMenu({ id, x, y })}
       />
     );
   } else {
@@ -866,6 +880,32 @@ export function App(): ReactElement {
           }}
           onSelect={select}
           onToggle={(id) => void toggle(id)}
+          onKanban={openKanban}
+        />
+      )}
+      {menu && menuNode && (
+        <ContextMenu
+          x={menu.x}
+          y={menu.y}
+          heading={`${spokeId(menuNode.id)} ${menuNode.title}`}
+          onClose={closeMenu}
+          items={[
+            ...(menuNode.child_count > 0
+              ? [{ label: "View Kanban ↗", onPick: () => openKanban(menuNode.id) }]
+              : []),
+            { label: "Show details", onPick: () => select(menuNode.id) },
+            ...(menuNode.child_count > 0
+              ? [
+                  {
+                    label:
+                      expanded.has(menuNode.id) && knownChildren(store, menuNode.id).length > 0
+                        ? "Collapse branch"
+                        : "Expand branch",
+                    onPick: () => void toggle(menuNode.id),
+                  },
+                ]
+              : []),
+          ]}
         />
       )}
     </div>

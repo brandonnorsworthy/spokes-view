@@ -650,7 +650,7 @@ input {
   cursor: pointer;
   line-height: 1;
 }
-.panel h2 {
+.details h2 {
   font-size: 1.2rem;
   margin: 0.5rem 0 0.25rem;
   display: flex;
@@ -728,7 +728,7 @@ input {
   padding: 0 0.55rem;
   font-size: 0.8rem;
 }
-.panel h3 {
+.details h3 {
   font-size: 0.8rem;
   text-transform: uppercase;
   letter-spacing: 0.05em;
@@ -777,6 +777,207 @@ input {
   color: var(--alert);
 }
 
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+a.btn {
+  color: inherit;
+  text-decoration: none;
+}
+
+/* ---- graph context menu ---- */
+.context-menu {
+  position: fixed;
+  z-index: 20;
+  min-width: 11rem;
+  padding: 0.3rem;
+  margin: 0;
+  list-style: none;
+  background: var(--bg-2);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgb(0 0 0 / 35%);
+}
+.context-menu .menu-head {
+  padding: 0.25rem 0.6rem 0.35rem;
+  font-size: 0.8rem;
+  color: var(--muted);
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 0.25rem;
+  max-width: 18rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.context-menu button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  border-radius: 5px;
+  padding: 0.35rem 0.6rem;
+  cursor: pointer;
+}
+.context-menu button:hover,
+.context-menu button:focus-visible {
+  background: var(--bg-3);
+}
+
+/* ---- modal ---- */
+.modal {
+  width: min(40rem, calc(100vw - 2rem));
+  max-height: calc(100vh - 4rem);
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--bg-2);
+  color: var(--text);
+  box-shadow: 0 16px 48px rgb(0 0 0 / 45%);
+}
+.modal::backdrop {
+  background: rgb(0 0 0 / 55%);
+}
+.modal-body {
+  padding: 0.85rem 1.2rem 1.4rem;
+}
+
+/* ---- kanban board ---- */
+.kanban-app {
+  grid-template-rows: auto auto 1fr;
+}
+.bar .home {
+  color: inherit;
+  text-decoration: none;
+}
+.bar .home:hover {
+  text-decoration: underline;
+}
+.board-title {
+  font-weight: 400;
+  color: var(--muted);
+  min-width: 0;
+}
+.board-title strong {
+  color: var(--text);
+  font-weight: 650;
+}
+.kanban-main {
+  overflow: auto;
+}
+.board {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(16rem, 1fr);
+  gap: 0.9rem;
+  padding: 0.9rem 1rem 1.5rem;
+  align-items: start;
+  min-height: 100%;
+}
+.column {
+  background: var(--bg-2);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 0.6rem;
+  min-width: 0;
+}
+.column h2 {
+  font-size: 0.9rem;
+  margin: 0.1rem 0.2rem 0.6rem;
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  text-transform: capitalize;
+}
+.column .count {
+  margin-left: auto;
+  color: var(--muted);
+  font-weight: 500;
+  font-size: 0.8rem;
+}
+.cards {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.5rem;
+}
+.card {
+  --card-accent: var(--open);
+  display: grid;
+  gap: 0.2rem;
+  width: 100%;
+  text-align: left;
+  background: var(--bg-3);
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--card-accent);
+  border-radius: 7px;
+  padding: 0.5rem 0.65rem;
+  cursor: pointer;
+}
+.card:hover {
+  border-color: var(--accent);
+  border-left-color: var(--card-accent);
+}
+.card[data-status="in_progress"] {
+  --card-accent: var(--in-progress);
+}
+.card[data-status="waiting"] {
+  --card-accent: var(--waiting);
+}
+.card[data-status="done"] {
+  --card-accent: var(--done);
+}
+.card[data-status="dropped"] {
+  --card-accent: var(--dropped);
+}
+.card[data-status="dropped"] .card-title {
+  text-decoration: line-through;
+  color: var(--muted);
+}
+.card.deferred {
+  opacity: 0.6;
+}
+.card-path {
+  font-size: 0.75rem;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.card-title {
+  font-weight: 550;
+  word-break: break-word;
+}
+.card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem 0.45rem;
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+.prio-chip {
+  font-weight: 700;
+}
+.prio-chip.p1 {
+  color: var(--p1);
+  border-color: var(--p1);
+}
+.prio-chip.p2 {
+  color: var(--p2);
+  border-color: var(--p2);
+}
+.prio-chip.p3 {
+  color: var(--p3);
+  border-color: var(--p3);
+}
+.prio-chip.p4 {
+  color: var(--p4);
+}
+
 /* ---- phone width: the panel becomes a bottom sheet ---- */
 @media (max-width: 760px) {
   .app.with-panel {
@@ -812,6 +1013,15 @@ input {
   }
   .legend-body {
     max-width: calc(100vw - 1.5rem);
+  }
+  .board {
+    grid-auto-flow: row;
+    grid-auto-columns: auto;
+    padding: 0.6rem;
+  }
+  .modal {
+    width: calc(100vw - 1rem);
+    max-height: calc(100vh - 2rem);
   }
 }
 

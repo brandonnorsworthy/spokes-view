@@ -1,7 +1,7 @@
 ---
-status: Planned
+status: In progress
 spoke: SPOKE-115
-started:
+started: 2026-11-19
 finished:
 summary: Right-click "View Kanban" opens a new tab with a status-column board of a spoke's descendants, cards open a details modal.
 ---
@@ -52,3 +52,19 @@ All steps touch `web/src/` and run in order (each builds on the previous one).
    "View Kanban" button in the side panel.
 5. **Verify** — `npm run lint && npm run format:check && npm run typecheck && npm test &&
    npm run build`, `cargo test --locked`, and a manual check against a running server.
+
+## What shipped
+
+All five steps, in one branch (`feat/kanban-view`), implemented in the main session rather
+than through `plan-executor`: the steps were small and tightly coupled.
+
+- Deviation: `buildBoard` keeps only nodes whose parent chain reaches the board's root
+  (a unit test caught ancestors leaking onto the board).
+- Added `ContextMenu.tsx` (Escape, outside press, wheel, resize or blur close it; arrow
+  keys move between items; Shift+F10 / the menu key open it on a focused node).
+- The graph's context menu also offers **Show details** and **Expand / Collapse branch**.
+- Verified: ESLint, Prettier, `tsc`, Vitest (27 tests), Vite build, `cargo test`,
+  `cargo clippy`, and a headless Chromium run against the LAN Spokes 0.3.0 server:
+  right-click SPOKE-5 → View Kanban opened `/?server=Home&kanban=5` in a new tab, the
+  board drew 9 cards, a card opened the modal with notes and events, Escape closed it,
+  and the 390 px phone layout stacks the columns.
