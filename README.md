@@ -12,6 +12,7 @@ The finished product:
 - **Radial graph:** the root in the centre, areas and tasks radiating outward, drawn so a tree of tens of thousands of nodes stays usable: only the top levels load at first, branches load when opened, collapsed branches show how much is hidden.
 - **Everything at a glance:** status colours, areas apart from tasks, priority rings, markers for claims, stalled claims, questions waiting on the user, due and overdue dates, the focus list, deferrals, repeats, notes and the actionable next step of an ordered parent.
 - **Details on click:** breadcrumb, every field in readable form (dates in the server's time zone), notes and recent events.
+- **Kanban view:** right-click a node (or press the menu key, or use the button in its details) and pick **View Kanban** to open a new tab with every node beneath it on a board, one column per status (`/?server=<name>&kanban=<id>`). Cards show where they sit below the board's root; clicking one opens its details in a modal.
 - **Live enough:** a refresh button and a cheap automatic refresh (ETag/304) that keeps the view, expanded branches and selection.
 - **Later:** search and filter, editing from the UI, authentication, and viewing other trees with the same shape (such as a future Preferences MCP).
 

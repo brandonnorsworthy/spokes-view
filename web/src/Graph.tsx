@@ -33,10 +33,12 @@ export interface GraphProps {
   fitKey: number;
   onSelect: (id: number) => void;
   onToggle: (id: number) => void;
+  /** Right-click (or the menu key) on a node, at a point in viewport pixels. */
+  onMenu: (id: number, x: number, y: number) => void;
 }
 
 export function Graph(props: GraphProps): ReactElement {
-  const { layout, store, expanded, loading, selected, fitKey, onSelect, onToggle } = props;
+  const { layout, store, expanded, loading, selected, fitKey, onSelect, onToggle, onMenu } = props;
   const svgRef = useRef<SVGSVGElement>(null);
   const viewportRef = useRef<SVGGElement>(null);
   const boxRef = useRef<HTMLDivElement>(null);
@@ -241,10 +243,20 @@ export function Graph(props: GraphProps): ReactElement {
     const id = idFrom(e.target);
     if (id !== null) onToggle(id);
   };
+  const onContextMenu = (e: MouseEvent) => {
+    const id = idFrom(e.target);
+    if (id === null) return;
+    e.preventDefault();
+    onMenu(id, e.clientX, e.clientY);
+  };
   const onKeyDown = (e: KeyboardEvent) => {
     const id = idFrom(e.target);
     if (id === null) return;
-    if (e.key === "Enter") {
+    if (e.key === "ContextMenu" || (e.key === "F10" && e.shiftKey)) {
+      e.preventDefault();
+      const r = (e.target as Element).getBoundingClientRect();
+      onMenu(id, r.left + r.width / 2, r.top + r.height / 2);
+    } else if (e.key === "Enter") {
       e.preventDefault();
       onSelect(id);
     } else if (e.key === " " || e.key === "+" || e.key === "-") {
@@ -278,9 +290,10 @@ export function Graph(props: GraphProps): ReactElement {
         ref={svgRef}
         className="graph-svg"
         role="tree"
-        aria-label="To-do tree. Drag to pan, scroll or pinch to zoom. Enter opens a node, Space expands or collapses it."
+        aria-label="To-do tree. Drag to pan, scroll or pinch to zoom. Enter opens a node, Space expands or collapses it, right-click or the menu key shows more."
         onClick={onClick}
         onDoubleClick={onDoubleClick}
+        onContextMenu={onContextMenu}
         onKeyDown={onKeyDown}
       >
         <g ref={viewportRef}>
