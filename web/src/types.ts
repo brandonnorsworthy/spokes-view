@@ -73,6 +73,25 @@ export interface NodeResponse extends Meta {
   events: SpokeEvent[];
 }
 
+export interface HistoryEvent extends SpokeEvent {
+  node: number;
+  from_parent: number | null;
+  to_parent: number | null;
+  from_status: string | null;
+  to_status: string | null;
+}
+
+/** Spokes 0.4.0+ `/api/history`: a subtree (closed nodes included) and its events. */
+export interface HistoryResponse extends Meta {
+  root: number;
+  path: Crumb[];
+  node_limit: number;
+  event_limit: number;
+  truncated: boolean;
+  nodes: ViewNode[];
+  events: HistoryEvent[];
+}
+
 export type ServerStatus = "ok" | "unreachable" | "too_old" | "error";
 
 export interface ServerEntry {
@@ -88,5 +107,6 @@ export type ErrorCode =
   | "not_found"
   | "unreachable"
   | "too_old"
+  | "history_unsupported"
   | "upstream_error"
   | "network";

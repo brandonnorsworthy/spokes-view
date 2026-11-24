@@ -14,7 +14,7 @@ use crate::config::Server;
 
 /// How long to wait for a TCP connection.
 pub const CONNECT_TIMEOUT: Duration = Duration::from_secs(3);
-/// Whole-request limit for tree slices and node detail.
+/// Whole-request limit for tree slices, node detail and history.
 pub const REQUEST_TIMEOUT: Duration = Duration::from_secs(15);
 /// Whole-request limit for the reachability probe in the server list.
 pub const PROBE_TIMEOUT: Duration = Duration::from_secs(3);
@@ -28,8 +28,10 @@ pub enum UpstreamError {
     Unreachable(String),
     /// `/health` answers but `/api` does not exist: a Spokes older than 0.2.0.
     TooOld,
-    /// The server answered 404 with its own JSON error (an unknown node).
-    NotFound,
+    /// The server answered 404 with its own JSON error (an unknown node). Holds that
+    /// error's text (empty if it had none), so callers can tell an unknown path from
+    /// an unknown node.
+    NotFound(String),
     /// Anything else unexpected (a 403 from its Host/Origin rules, a 500, ...).
     Other(String),
 }
@@ -105,7 +107,8 @@ pub async fn get(
             // Spokes 0.2.0+ answers an unknown node with a JSON error; a 0.1.0 server
             // has no /api at all and answers with an empty, untyped 404.
             if is_json(res.headers()) {
-                Err(UpstreamError::NotFound)
+                let body = read_body(&mut res).await.unwrap_or_default();
+                Err(UpstreamError::NotFound(error_text(&body)))
             } else {
                 Err(classify_missing_api(client, server).await)
             }
@@ -118,6 +121,23 @@ pub async fn get(
             s.as_u16()
         ))),
     }
+}
+
+/// The `error` string of a Spokes JSON error body, or empty.
+fn error_text(body: &[u8]) -> String {
+    #[derive(Deserialize)]
+    struct E {
+        error: Option<String>,
+    }
+    serde_json::from_slice::<E>(body)
+        .ok()
+        .and_then(|e| e.error)
+        .unwrap_or_default()
+}
+
+/// Spokes' own wording for a path it does not serve (a 0.2.0/0.3.0 asked for `/api/history`).
+pub fn is_missing_endpoint(error: &str) -> bool {
+    error.starts_with("no such endpoint")
 }
 
 fn is_json(headers: &axum::http::HeaderMap) -> bool {
@@ -213,7 +233,7 @@ fn from_error(e: UpstreamError) -> Probe {
     let (status, message) = match e {
         UpstreamError::Unreachable(m) => ("unreachable", m),
         UpstreamError::TooOld => ("too_old", TOO_OLD.to_string()),
-        UpstreamError::NotFound => ("error", "unexpected 404".to_string()),
+        UpstreamError::NotFound(_) => ("error", "unexpected 404".to_string()),
         UpstreamError::Other(m) => ("error", m),
     };
     Probe {

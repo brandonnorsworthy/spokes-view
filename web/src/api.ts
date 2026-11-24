@@ -1,4 +1,4 @@
-import type { ErrorCode, NodeResponse, ServerEntry, TreeResponse } from "./types";
+import type { ErrorCode, HistoryResponse, NodeResponse, ServerEntry, TreeResponse } from "./types";
 
 /** An error from the backend (or the network), with the backend's error code. */
 export class ApiError extends Error {
@@ -23,6 +23,7 @@ const KNOWN_CODES: readonly ErrorCode[] = [
   "not_found",
   "unreachable",
   "too_old",
+  "history_unsupported",
   "upstream_error",
 ];
 
@@ -98,4 +99,27 @@ export function fetchNode(
     etag,
     signal,
   );
+}
+
+/** A subtree's whole history (Spokes 0.4.0+), for replay. */
+export async function fetchHistory(
+  server: string,
+  root: number,
+  signal?: AbortSignal,
+): Promise<HistoryResponse> {
+  const r = await getJson<HistoryResponse>(
+    `/api/servers/${enc(server)}/history?root=${String(root)}`,
+    null,
+    signal,
+  );
+  if (!r.data) throw new ApiError("upstream_error", 304, "unexpected 304");
+  return r.data;
+}
+
+/** True when a Spokes version string is at least `major.minor`. */
+export function versionAtLeast(version: string | null, major: number, minor: number): boolean {
+  const m = /^(\d+)\.(\d+)/.exec(version ?? "");
+  if (!m) return false;
+  const [a, b] = [Number(m[1]), Number(m[2])];
+  return a > major || (a === major && b >= minor);
 }

@@ -719,3 +719,279 @@ input {
     max-width: calc(100vw - 1.5rem);
   }
 }
+
+/* ---- replay ---- */
+.replay {
+  position: absolute;
+  top: 0.75rem;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(46rem, calc(100% - 1.5rem));
+  background: color-mix(in srgb, var(--bg-2) 95%, transparent);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 0.55rem 0.8rem 0.5rem;
+  box-shadow: 0 8px 24px rgb(0 0 0 / 30%);
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  z-index: 3;
+}
+.replay-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+.replay-title {
+  font-size: 0.9rem;
+  color: var(--muted);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1 1 10rem;
+}
+.replay-title strong {
+  color: var(--text);
+  font-weight: 600;
+}
+.replay-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+.btn.icon {
+  min-width: 2.1rem;
+  padding: 0.25rem 0.45rem;
+  font-variant-emoji: text;
+}
+.btn.icon.play {
+  border-color: var(--accent);
+  min-width: 2.6rem;
+}
+.replay-speed select {
+  background: var(--bg-3);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 0.25rem 0.35rem;
+}
+.replay-scrub {
+  width: 100%;
+  accent-color: var(--accent);
+  margin: 0.1rem 0;
+}
+.replay-caption {
+  display: flex;
+  gap: 0.6rem;
+  align-items: baseline;
+  font-size: 0.85rem;
+  min-height: 1.3em;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.replay-pos {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.replay-when {
+  color: var(--muted);
+}
+.replay-agent {
+  color: var(--in-progress);
+}
+.replay-what {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+.replay-note {
+  font-size: 0.8rem;
+  color: var(--alert);
+}
+.replay-error {
+  display: flex;
+  gap: 0.6rem;
+  align-items: center;
+  z-index: 4;
+}
+.glows {
+  pointer-events: none;
+}
+.glow-branch,
+.glow-branch-wide,
+.glow-branch-halo {
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+  animation: glow-fade 2.6s ease-out forwards;
+}
+.glow-branch {
+  stroke-width: 5;
+}
+.glow-branch-wide {
+  stroke-width: 14;
+  stroke-opacity: 0.35;
+}
+/* Without the blur filter (fast replay) these layered strokes still read as a glow. */
+.glow-branch-halo {
+  stroke-width: 28;
+  stroke-opacity: 0.14;
+}
+.glow-steady-branch {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.5;
+  stroke-opacity: 0.6;
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
+}
+.glow-steady {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 3;
+  vector-effect: non-scaling-stroke;
+}
+.glow-halo {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: glow-bloom 2.6s ease-out forwards;
+}
+.glow-ring {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 3;
+  vector-effect: non-scaling-stroke;
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: glow-ring 2.6s ease-out forwards;
+}
+@keyframes glow-fade {
+  0% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.95;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+@keyframes glow-bloom {
+  0% {
+    opacity: 0;
+    transform: scale(0.3);
+  }
+  12% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  45% {
+    opacity: 0.9;
+    transform: scale(1.05);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.35);
+  }
+}
+@keyframes glow-ring {
+  0% {
+    opacity: 1;
+    transform: scale(0.6);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(2.4);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .glow-branch,
+  .glow-branch-wide,
+  .glow-branch-halo,
+  .glow-halo,
+  .glow-ring {
+    animation-duration: 0.01s;
+    animation-delay: 0s;
+  }
+  .glow-ring {
+    display: none;
+  }
+}
+.replay-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.4rem 1rem;
+  flex-wrap: wrap;
+}
+.replay-option {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.75rem;
+  color: var(--muted);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.replay-option input {
+  margin: 0;
+  accent-color: var(--accent);
+}
+.replay-key {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.15rem 0.75rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+.replay-key li {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+.key-dot {
+  width: 0.6rem;
+  height: 0.6rem;
+  border-radius: 50%;
+  box-shadow: 0 0 6px currentColor;
+  background: currentColor;
+}
+.c-added {
+  color: var(--next);
+}
+.c-done {
+  color: var(--done);
+}
+.c-dropped {
+  color: var(--dropped);
+}
+.c-claimed {
+  color: var(--in-progress);
+}
+.c-waiting {
+  color: var(--waiting);
+}
+.c-moved {
+  color: var(--accent);
+}
+.c-reopened {
+  color: var(--p2);
+}
+.c-edited {
+  color: var(--focus);
+}
+@media (max-width: 640px) {
+  .replay {
+    top: 0.4rem;
+    padding: 0.45rem 0.55rem;
+  }
+  .replay-when {
+    display: none;
+  }
+}

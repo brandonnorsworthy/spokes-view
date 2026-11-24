@@ -6,8 +6,11 @@
 //! - `GET /api/servers/{name}/tree?root=&depth=&include_closed=`: a tree slice.
 //! - `GET /api/servers/{name}/nodes/{id}?include_closed=`: one node with notes.
 //!
+//! - `GET /api/servers/{name}/history?root=`: the replay history of a subtree (Spokes 0.4.0+).
+//!
 //! Errors are `{"error": "...", "code": "..."}` with `code` one of `bad_request`,
-//! `unknown_server`, `not_found`, `unreachable`, `too_old`, `upstream_error`.
+//! `unknown_server`, `not_found`, `unreachable`, `too_old`, `history_unsupported`,
+//! `upstream_error`.
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -64,6 +67,7 @@ pub fn router(state: AppState) -> Router {
         .route("/servers", get(servers))
         .route("/servers/{name}/tree", get(tree))
         .route("/servers/{name}/nodes/{id}", get(node))
+        .route("/servers/{name}/history", get(history))
         .fallback(|| async { not_found() })
         .method_not_allowed_fallback(|| async {
             ApiError::new(
@@ -134,7 +138,7 @@ fn upstream_error(server: &Server, e: UpstreamError, what: &str) -> ApiError {
         UpstreamError::TooOld => {
             ApiError::new(StatusCode::BAD_GATEWAY, "too_old", upstream::TOO_OLD)
         }
-        UpstreamError::NotFound => ApiError::new(
+        UpstreamError::NotFound(_) => ApiError::new(
             StatusCode::NOT_FOUND,
             "not_found",
             format!("{what} is not in the tree on '{name}' (it may be closed or gone)"),
@@ -374,6 +378,43 @@ async fn node(
     .await
     .map(pass)
     .map_err(|e| upstream_error(server, e, &format!("SPOKE-{id}")))
+}
+
+/// Shown when a Spokes server answers `/api/history` with "no such endpoint".
+const HISTORY_UNSUPPORTED: &str = "this Spokes server is older than 0.4.0 and has no history API";
+
+async fn history(
+    State(state): State<AppState>,
+    Path(name): Path<String>,
+    headers: HeaderMap,
+    query: Result<Query<Vec<(String, String)>>, QueryRejection>,
+) -> Result<Response, ApiError> {
+    let server = state.server(&name)?;
+    let p = params(query, &["root"])?;
+    let (path, what) = match p.get("root") {
+        None => ("/api/history".to_string(), "the tree".to_string()),
+        Some(v) => {
+            let root = parse_id(v, "root")?;
+            (format!("/api/history?root={root}"), format!("SPOKE-{root}"))
+        }
+    };
+    upstream::get(
+        &state.client,
+        server,
+        &path,
+        if_none_match(&headers).as_ref(),
+        accepts_gzip(&headers),
+    )
+    .await
+    .map(pass)
+    .map_err(|e| match e {
+        UpstreamError::NotFound(msg) if upstream::is_missing_endpoint(&msg) => ApiError::new(
+            StatusCode::BAD_GATEWAY,
+            "history_unsupported",
+            HISTORY_UNSUPPORTED,
+        ),
+        e => upstream_error(server, e, &what),
+    })
 }
 
 #[cfg(test)]

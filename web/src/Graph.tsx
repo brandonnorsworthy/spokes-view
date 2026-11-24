@@ -23,6 +23,13 @@ function bucket(k: number): number {
   return Math.pow(LOD_STEP, Math.round(Math.log(k) / Math.log(LOD_STEP)));
 }
 
+/** A change to light up: the node, a class naming the kind of change, and its step. */
+export interface Glow {
+  id: number;
+  change: string;
+  step: number;
+}
+
 export interface GraphProps {
   layout: Layout;
   store: Store;
@@ -33,10 +40,21 @@ export interface GraphProps {
   fitKey: number;
   onSelect: (id: number) => void;
   onToggle: (id: number) => void;
+  /** Nodes to glow, with the branch down to them (replay: what recent steps changed). */
+  highlight?: readonly Glow[];
+  /** Refit when the tree grows or shrinks a lot, until the user pans or zooms (replay). */
+  follow?: boolean;
+  /** Blur the glows for a real glow (costly: replay turns it off at higher speeds). */
+  softGlow?: boolean;
+  /** Screen pixels at the top covered by something floating (the replay bar). */
+  topInset?: number;
 }
 
 export function Graph(props: GraphProps): ReactElement {
-  const { layout, store, expanded, loading, selected, fitKey, onSelect, onToggle } = props;
+  const { layout, store, expanded, loading, selected, fitKey, onSelect, onToggle, highlight } =
+    props;
+  const follow = props.follow ?? false;
+  const topInset = props.topInset ?? 0;
   const svgRef = useRef<SVGSVGElement>(null);
   const viewportRef = useRef<SVGGElement>(null);
   const boxRef = useRef<HTMLDivElement>(null);
@@ -99,8 +117,12 @@ export function Graph(props: GraphProps): ReactElement {
     [],
   );
 
+  /** The user panned or zoomed since the last fit: following stops until the next fit. */
+  const userMoved = useRef(false);
+
   const zoomAt = useCallback(
     (factor: number, cx: number, cy: number) => {
+      userMoved.current = true;
       const v = view.current;
       const k = Math.min(MAX_K, Math.max(MIN_K, v.k * factor));
       const f = k / v.k;
@@ -114,7 +136,8 @@ export function Graph(props: GraphProps): ReactElement {
     const svg = svgRef.current;
     if (!svg) return;
     const w = svg.clientWidth || 800;
-    const h = svg.clientHeight || 600;
+    const top = Math.min(topInset, (svg.clientHeight || 600) / 2);
+    const h = (svg.clientHeight || 600) - top;
     const b = layout.bounds;
     // Leave room, in screen pixels, for the outermost labels (their size is fixed on screen).
     const padX = Math.min(260, w * 0.2);
@@ -127,9 +150,10 @@ export function Graph(props: GraphProps): ReactElement {
     );
     const cx = (b.minX + b.maxX) / 2;
     const cy = (b.minY + b.maxY) / 2;
-    view.current = { k, x: w / 2 - cx * k, y: h / 2 - cy * k };
+    view.current = { k, x: w / 2 - cx * k, y: top + h / 2 - cy * k };
+    userMoved.current = false;
     apply(true);
-  }, [layout, apply]);
+  }, [layout, apply, topInset]);
 
   // Fit on a new server's first layout; later layouts (refresh, expand) keep the view.
   const fitted = useRef(-1);
@@ -139,6 +163,24 @@ export function Graph(props: GraphProps): ReactElement {
       fit();
     }
   }, [fitKey, layout, fit]);
+
+  // Following a growing tree: refit once it is a good deal larger than at the last fit.
+  const fittedSize = useRef({ key: -1, size: 0 });
+  useLayoutEffect(() => {
+    const b = layout.bounds;
+    const size = Math.max(b.maxX - b.minX, b.maxY - b.minY, 1);
+    if (fitted.current !== fitKey) return;
+    // A fresh fit (or not following) sets the reference size.
+    if (fittedSize.current.key !== fitKey || !follow || userMoved.current) {
+      fittedSize.current = { key: fitKey, size };
+      return;
+    }
+    // Grown well past the last fit, or shrunk a lot (stepping back): refit.
+    if (size > fittedSize.current.size * 1.25 || size < fittedSize.current.size * 0.5) {
+      fittedSize.current = { key: fitKey, size };
+      fit();
+    }
+  }, [layout, follow, fitKey, fit]);
 
   // Wheel and pinch zoom, drag to pan. Listeners are native so wheel can preventDefault.
   useEffect(() => {
@@ -175,6 +217,7 @@ export function Graph(props: GraphProps): ReactElement {
       pointers.set(e.pointerId, p);
       if (start && Math.hypot(p.x - start.x, p.y - start.y) > 4 && !dragged.current) {
         dragged.current = true;
+        userMoved.current = true;
         try {
           svg.setPointerCapture(e.pointerId);
         } catch {
@@ -286,6 +329,15 @@ export function Graph(props: GraphProps): ReactElement {
         <g ref={viewportRef}>
           <Rings radii={layout.radii} />
           <Edges layout={layout} />
+          {highlight && highlight.length > 0 && (
+            <Glows
+              layout={layout}
+              store={store}
+              glows={highlight}
+              k={lod}
+              soft={props.softGlow ?? true}
+            />
+          )}
           {selPath && <path className="edge-selected" d={selPath} />}
           <Nodes layout={layout} store={store} expanded={expanded} loading={loading} k={lod} />
           {sel && (
@@ -334,6 +386,114 @@ export function Graph(props: GraphProps): ReactElement {
  * halfway between the rings, around that circle to the child's angle, then out to the
  * child. Edges then stay between their two rings and never cut across the centre.
  */
+const GLOW_COLOURS: Record<string, string> = {
+  added: "var(--next)",
+  done: "var(--done)",
+  dropped: "var(--dropped)",
+  claimed: "var(--in-progress)",
+  waiting: "var(--waiting)",
+  moved: "var(--accent)",
+  reopened: "var(--p2)",
+  edited: "var(--focus)",
+};
+
+/**
+ * Replay glows: each changed node gets a soft halo, and the branch from the root down to
+ * it lights up, both fading out. Each glow is keyed by its step, so it plays once and a
+ * newer step does not cut an older one short.
+ */
+function Glows({
+  layout,
+  store,
+  glows,
+  k,
+  soft,
+}: {
+  layout: Layout;
+  store: Store;
+  glows: readonly Glow[];
+  k: number;
+  soft: boolean;
+}): ReactElement {
+  // The halo keeps at least this size on screen (px), however far out the view is.
+  const minHalo = 34 / k;
+  // The newest step stays marked (a steady ring and branch) until the next one.
+  const latest = glows.reduce((m, g) => Math.max(m, g.step), 0);
+  const b = layout.bounds;
+  // Room around the tree for halos and blur, in layout units.
+  const pad = 120 / k;
+  return (
+    <g className="glows" aria-hidden="true">
+      <defs>
+        {/* A real glow: the layer blurred at two radii (in screen pixels, so it looks the
+            same at any zoom) under the sharp strokes. The region is in user space because
+            a straight branch has a zero-height box, which would clip a box-relative one. */}
+        <filter
+          id="glow-blur"
+          filterUnits="userSpaceOnUse"
+          x={b.minX - pad}
+          y={b.minY - pad}
+          width={b.maxX - b.minX + 2 * pad}
+          height={b.maxY - b.minY + 2 * pad}
+        >
+          <feGaussianBlur in="SourceGraphic" stdDeviation={4 / k} result="near" />
+          <feGaussianBlur in="SourceGraphic" stdDeviation={12 / k} result="far" />
+          <feMerge>
+            <feMergeNode in="far" />
+            <feMergeNode in="near" />
+            <feMergeNode in="SourceGraphic" />
+          </feMerge>
+        </filter>
+        {Object.entries(GLOW_COLOURS).map(([change, colour]) => (
+          <radialGradient key={change} id={`glow-${change}`}>
+            <stop offset="0%" style={{ stopColor: colour, stopOpacity: 0.85 }} />
+            <stop offset="45%" style={{ stopColor: colour, stopOpacity: 0.35 }} />
+            <stop offset="100%" style={{ stopColor: colour, stopOpacity: 0 }} />
+          </radialGradient>
+        ))}
+      </defs>
+      <g filter={soft ? "url(#glow-blur)" : undefined}>
+        {glows.map((g) => {
+          const p = layout.byId.get(g.id);
+          if (!p) return null;
+          let d = "";
+          let cur: NodePos = p;
+          while (cur.parent !== null) {
+            const up = layout.byId.get(cur.parent);
+            if (!up) break;
+            d += edgePath(up, cur);
+            cur = up;
+          }
+          const colour = GLOW_COLOURS[g.change] ?? "var(--focus)";
+          const nr = nodeRadius(store.nodes.get(g.id), p);
+          const r = Math.max(nr + 18, minHalo);
+          return (
+            <g key={`${String(g.step)}-${String(g.id)}`} className="glow" style={{ color: colour }}>
+              {d && <path className="glow-branch-halo" d={d} />}
+              {d && <path className="glow-branch-wide" d={d} />}
+              {d && <path className="glow-branch" d={d} />}
+              <circle
+                className="glow-halo"
+                cx={p.x}
+                cy={p.y}
+                r={r}
+                fill={`url(#glow-${g.change in GLOW_COLOURS ? g.change : "edited"})`}
+              />
+              <circle className="glow-ring" cx={p.x} cy={p.y} r={r * 0.45} />
+              {g.step === latest && (
+                <>
+                  {d && <path className="glow-steady-branch" d={d} />}
+                  <circle className="glow-steady" cx={p.x} cy={p.y} r={Math.max(nr + 7, 12 / k)} />
+                </>
+              )}
+            </g>
+          );
+        })}
+      </g>
+    </g>
+  );
+}
+
 export function edgePath(p: NodePos, c: NodePos): string {
   const f = (v: number) => v.toFixed(1);
   if (p.depth === 0) return `M${f(p.x)} ${f(p.y)}L${f(c.x)} ${f(c.y)}`;
