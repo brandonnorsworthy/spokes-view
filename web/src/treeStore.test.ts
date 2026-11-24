@@ -7,6 +7,7 @@ import {
   knownChildren,
   missingChildren,
   needsFetch,
+  revealStep,
 } from "./treeStore";
 import type { TreeResponse, ViewNode } from "./types";
 
@@ -163,5 +164,50 @@ describe("fullExpansion", () => {
     expect([...plan.expanded]).toEqual([1]);
     expect(plan.pending).toEqual([]);
     expect(plan.limited).toBe(true);
+  });
+});
+
+describe("revealStep", () => {
+  // 1 -> 2 -> 4 -> 6, where only 1, 2 and 3 are loaded at first.
+  const first = slice(1, [
+    node(1, null, { child_count: 2, descendant_count: 5 }),
+    node(2, 1, { child_count: 1, descendant_count: 2, children_loaded: false }),
+    node(3, 1),
+  ]);
+  const branch2 = slice(2, [
+    node(2, 1, { child_count: 1, descendant_count: 2 }),
+    node(4, 2, { child_count: 1, descendant_count: 1, children_loaded: false }),
+  ]);
+  const branch4 = slice(4, [node(4, 2, { child_count: 1, descendant_count: 1 }), node(6, 4)]);
+  const chain = [1, 2, 4, 6];
+
+  it("fetches the branches down to the node, one level of gap at a time", () => {
+    const tried = new Set<number>();
+    expect(revealStep(buildStore([first]), chain, tried)).toEqual({ kind: "fetch", id: 2 });
+    tried.add(2);
+    expect(revealStep(buildStore([first, branch2]), chain, tried)).toEqual({
+      kind: "fetch",
+      id: 4,
+    });
+    tried.add(4);
+    expect(revealStep(buildStore([first, branch2, branch4]), chain, tried)).toEqual({
+      kind: "ready",
+    });
+  });
+
+  it("is ready at once for a node already loaded", () => {
+    expect(revealStep(buildStore([first]), [1, 3], new Set())).toEqual({ kind: "ready" });
+    expect(revealStep(buildStore([first]), [1], new Set())).toEqual({ kind: "ready" });
+  });
+
+  it("gives up when a fetched branch still lacks the node (hidden or moved)", () => {
+    expect(revealStep(buildStore([first, branch2]), [1, 2, 9], new Set([2]))).toEqual({
+      kind: "blocked",
+      id: 9,
+    });
+  });
+
+  it("is blocked when the root itself is not loaded", () => {
+    expect(revealStep(buildStore([]), chain, new Set())).toEqual({ kind: "blocked", id: 1 });
   });
 });

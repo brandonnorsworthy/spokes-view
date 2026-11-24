@@ -144,6 +144,101 @@ input {
   padding: 0.3rem 0.5rem;
   min-width: 10rem;
 }
+/* Search: a box in the header with a dropdown of matches. */
+.search {
+  position: relative;
+}
+.search-input {
+  background: var(--bg-3);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 0.3rem 0.6rem;
+  width: 16rem;
+}
+.search-input::placeholder {
+  color: var(--muted);
+}
+.search-input:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+.search-results {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 30;
+  width: min(30rem, 92vw);
+  max-height: min(70vh, 32rem);
+  overflow-y: auto;
+  background: var(--bg-2);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgb(0 0 0 / 35%);
+  padding: 0.25rem 0;
+}
+.search-hit {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.55rem;
+  padding: 0.4rem 0.75rem;
+  cursor: pointer;
+}
+.search-hit.active {
+  background: var(--bg-3);
+}
+.search-dot {
+  flex: none;
+  width: 10px;
+  height: 10px;
+  margin-top: 0.35rem;
+  border-radius: 50%;
+  background: var(--open);
+}
+.search-dot.area {
+  border-radius: 2px;
+}
+.search-dot.status-in-progress {
+  background: var(--in-progress);
+}
+.search-dot.status-waiting {
+  background: var(--waiting);
+}
+.search-dot.status-done {
+  background: var(--done);
+}
+.search-dot.status-dropped {
+  background: var(--dropped);
+}
+.search-main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.search-title {
+  overflow-wrap: anywhere;
+}
+.search-path {
+  color: var(--muted);
+  font-size: 0.8rem;
+  overflow-wrap: anywhere;
+}
+.search-via {
+  font-style: italic;
+}
+.search-note {
+  color: var(--muted);
+  font-size: 0.85rem;
+  padding: 0.4rem 0.75rem;
+}
+.search-note.warn {
+  color: var(--alert);
+}
+@media (max-width: 640px) {
+  .search,
+  .search-input {
+    width: 100%;
+  }
+}
 .check {
   display: flex;
   align-items: center;

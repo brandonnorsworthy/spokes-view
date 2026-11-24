@@ -48,6 +48,8 @@ export interface GraphProps {
   softGlow?: boolean;
   /** Screen pixels at the top covered by something floating (the replay bar). */
   topInset?: number;
+  /** Centre the view on `id` once it is laid out; a new `key` asks again (search). */
+  focusOn?: { id: number; key: number } | null;
 }
 
 export function Graph(props: GraphProps): ReactElement {
@@ -163,6 +165,24 @@ export function Graph(props: GraphProps): ReactElement {
       fit();
     }
   }, [fitKey, layout, fit]);
+
+  // Centring on a node found by search, once it is drawn (its branch may still be loading).
+  const focused = useRef(-1);
+  const focusOn = props.focusOn ?? null;
+  useLayoutEffect(() => {
+    if (!focusOn || focused.current === focusOn.key) return;
+    const p = layout.byId.get(focusOn.id);
+    const svg = svgRef.current;
+    if (!p || !svg) return;
+    focused.current = focusOn.key;
+    const w = svg.clientWidth || 800;
+    const h = svg.clientHeight || 600;
+    // Close enough to read the neighbourhood, never further out than now.
+    const k = Math.min(MAX_K, Math.max(view.current.k, 1));
+    view.current = { k, x: w / 2 - p.x * k, y: h / 2 - p.y * k };
+    userMoved.current = true;
+    apply(true);
+  }, [focusOn, layout, apply]);
 
   // Following a growing tree: refit once it is a good deal larger than at the last fit.
   const fittedSize = useRef({ key: -1, size: 0 });
@@ -395,6 +415,8 @@ const GLOW_COLOURS: Record<string, string> = {
   moved: "var(--accent)",
   reopened: "var(--p2)",
   edited: "var(--focus)",
+  /** Not a replay change: the node a search jumped to. */
+  found: "var(--accent)",
 };
 
 /**
