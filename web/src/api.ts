@@ -1,4 +1,11 @@
-import type { ErrorCode, HistoryResponse, NodeResponse, ServerEntry, TreeResponse } from "./types";
+import type {
+  ErrorCode,
+  HistoryResponse,
+  NodeResponse,
+  SearchResponse,
+  ServerEntry,
+  TreeResponse,
+} from "./types";
 
 /** An error from the backend (or the network), with the backend's error code. */
 export class ApiError extends Error {
@@ -24,6 +31,7 @@ const KNOWN_CODES: readonly ErrorCode[] = [
   "unreachable",
   "too_old",
   "history_unsupported",
+  "search_unsupported",
   "upstream_error",
 ];
 
@@ -109,6 +117,23 @@ export async function fetchHistory(
 ): Promise<HistoryResponse> {
   const r = await getJson<HistoryResponse>(
     `/api/servers/${enc(server)}/history?root=${String(root)}`,
+    null,
+    signal,
+  );
+  if (!r.data) throw new ApiError("upstream_error", 304, "unexpected 304");
+  return r.data;
+}
+
+/** Ranked matches for `query` (Spokes 0.5.0+): typos, aliases and notes count. */
+export async function fetchSearch(
+  server: string,
+  query: string,
+  includeClosed: boolean,
+  limit: number,
+  signal?: AbortSignal,
+): Promise<SearchResponse> {
+  const r = await getJson<SearchResponse>(
+    `/api/servers/${enc(server)}/search?q=${enc(query)}&limit=${String(limit)}&include_closed=${String(includeClosed)}`,
     null,
     signal,
   );

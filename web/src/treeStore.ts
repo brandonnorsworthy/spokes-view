@@ -96,6 +96,33 @@ export function ancestors(store: Store, id: number): number[] {
   return out.reverse();
 }
 
+/** The next thing to do to get a node into the store (see [`revealStep`]). */
+export type Reveal =
+  { kind: "ready" } | { kind: "fetch"; id: number } | { kind: "blocked"; id: number };
+
+/**
+ * Walks `chain` (the root down to a target node, e.g. a search hit's path plus its id)
+ * and says what is missing: `fetch` the branch under the first node whose child on the
+ * chain is not loaded yet, `blocked` when that branch was already fetched (`tried`) and
+ * the child is still absent (hidden, or moved since), or `ready` when all are loaded.
+ */
+export function revealStep(
+  store: Store,
+  chain: readonly number[],
+  tried: ReadonlySet<number>,
+): Reveal {
+  const first = chain[0];
+  if (first === undefined) return { kind: "ready" };
+  if (!store.nodes.has(first)) return { kind: "blocked", id: first };
+  for (let i = 1; i < chain.length; i++) {
+    const id = chain[i] as number;
+    if (store.nodes.has(id)) continue;
+    const parent = chain[i - 1] as number;
+    return tried.has(parent) ? { kind: "blocked", id } : { kind: "fetch", id: parent };
+  }
+  return { kind: "ready" };
+}
+
 /**
  * The expansion to start with on a server's first load: open levels from the root down
  * while the number of drawn nodes stays at or under `budget`.

@@ -92,6 +92,32 @@ export interface HistoryResponse extends Meta {
   events: HistoryEvent[];
 }
 
+/** One match from Spokes 0.5.0+ `/api/search`. */
+export interface SearchHit {
+  id: number;
+  title: string;
+  kind: Kind;
+  status: Status;
+  effective_priority: number | null;
+  focus: number | null;
+  /** Ancestors from the root down (the root included, the node itself not). */
+  path: Crumb[];
+  /** Why it matched when the title did not: `alias "nas"` or `in notes`. */
+  via: string | null;
+}
+
+/** Spokes 0.5.0+ `/api/search`: the `search` tool's ranked matches as data. */
+export interface SearchResponse extends Meta {
+  query: string;
+  scope: number;
+  include_closed: boolean;
+  keywords: string[];
+  /** Matches found, before the limit. */
+  total: number;
+  hidden_closed: number;
+  results: SearchHit[];
+}
+
 export type ServerStatus = "ok" | "unreachable" | "too_old" | "error";
 
 export interface ServerEntry {
@@ -108,5 +134,6 @@ export type ErrorCode =
   | "unreachable"
   | "too_old"
   | "history_unsupported"
+  | "search_unsupported"
   | "upstream_error"
   | "network";

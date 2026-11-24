@@ -18,7 +18,7 @@ import {
   type TreeQuery,
 } from "./api";
 import { DetailPanel, type DetailState } from "./DetailPanel";
-import { clock } from "./format";
+import { clock, spokeId } from "./format";
 import { Graph, type Glow } from "./Graph";
 import { layoutRadial } from "./layout";
 import { Legend } from "./Legend";
@@ -31,9 +31,11 @@ import {
   initialExpansion,
   knownChildren,
   needsFetch,
+  revealStep,
   ROOT_ID,
 } from "./treeStore";
-import type { ServerEntry, TreeResponse } from "./types";
+import { Search } from "./Search";
+import type { SearchHit, ServerEntry, TreeResponse } from "./types";
 
 /** Levels loaded on a server's first load, and per branch opened later. */
 const FIRST_DEPTH = 3;
@@ -154,6 +156,9 @@ export function App(): ReactElement {
   const [playing, setPlaying] = useState(false);
   const [speed, setSpeed] = useState<Speed>(1);
   const [fullGlow, setFullGlow] = useState(() => readFlag(FULL_GLOW_KEY));
+  /** The node search last jumped to: centred once, and glowing for a moment. */
+  const [found, setFound] = useState<{ id: number; key: number } | null>(null);
+  const [glowing, setGlowing] = useState(false);
 
   // The latest values, for async work that outlives a render.
   const slicesRef = useRef(slices);
@@ -357,6 +362,69 @@ export function App(): ReactElement {
       }
     },
     [server, store, expanded, loading, includeClosed],
+  );
+
+  // Jump to a search hit: load the branches down to it, open them, select and centre it.
+  const reveal = useCallback(
+    async (hit: SearchHit) => {
+      if (!server) return;
+      const gen = generation.current;
+      const chain = [...hit.path.map((c) => c.id), hit.id];
+      let work = slicesRef.current;
+      const tried = new Set<number>();
+      try {
+        for (;;) {
+          const next = revealStep(buildStore(work.map((s) => s.data)), chain, tried);
+          if (next.kind === "ready") break;
+          if (next.kind === "blocked")
+            throw new Error(`${spokeId(next.id)} is not in the tree as loaded (closed or moved?)`);
+          const root = next.id;
+          tried.add(root);
+          setLoading((l) => new Set(l).add(root));
+          const q = { root, depth: BRANCH_DEPTH, includeClosed };
+          try {
+            const r = await fetchTree(server, q, null);
+            if (gen !== generation.current) return;
+            if (!r.data) throw new Error("a branch did not load");
+            const data = r.data;
+            work = [...work.filter((s) => s.q.root !== root), { q, etag: r.etag, data }];
+          } finally {
+            setLoading((l) => {
+              const n = new Set(l);
+              n.delete(root);
+              return n;
+            });
+          }
+        }
+        if (work !== slicesRef.current) setSlices(work);
+        setExpanded((ex) => {
+          const n = new Set(ex);
+          for (const a of chain.slice(0, -1)) n.add(a);
+          return n;
+        });
+        setSelected(hit.id);
+        setDetail({ id: hit.id, data: null, etag: null, error: null, loading: true });
+        void loadDetail(server, hit.id, includeClosed, null);
+        setFound((f) => ({ id: hit.id, key: (f?.key ?? 0) + 1 }));
+        setGlowing(true);
+        setRefreshError(null);
+      } catch (e) {
+        if (gen === generation.current)
+          setRefreshError(`Could not show ${spokeId(hit.id)}: ${errorOf(e).message}`);
+      }
+    },
+    [server, includeClosed, loadDetail],
+  );
+
+  // The found node glows once; the glow is dropped after it has played.
+  useEffect(() => {
+    if (!found) return;
+    const t = window.setTimeout(() => setGlowing(false), GLOW_MS);
+    return () => window.clearTimeout(t);
+  }, [found]);
+  const glowFound = useMemo<Glow[]>(
+    () => (found && glowing ? [{ id: found.id, change: "found", step: found.key }] : []),
+    [found, glowing],
   );
 
   // Open every branch, fetching the ones not loaded yet, up to EXPAND_ALL_LIMIT drawn nodes.
@@ -576,6 +644,8 @@ export function App(): ReactElement {
 
   const canReplay = (entry: ServerEntry | undefined) =>
     entry?.status === "ok" && versionAtLeast(entry.version, 0, 4);
+  const canSearch = (entry: ServerEntry | undefined) =>
+    entry?.status === "ok" && versionAtLeast(entry.version, 0, 5);
 
   const root = store.nodes.get(ROOT_ID);
   const current = servers?.find((s) => s.name === server);
@@ -638,6 +708,8 @@ export function App(): ReactElement {
         fitKey={fitKey}
         onSelect={select}
         onToggle={(id) => void toggle(id)}
+        focusOn={found}
+        highlight={glowFound}
       />
     );
   } else {
@@ -672,6 +744,15 @@ export function App(): ReactElement {
             ))}
           </select>
         </label>
+        <Search
+          // A new server starts with an empty box.
+          key={server ?? ""}
+          server={server}
+          includeClosed={includeClosed}
+          supported={canSearch(current)}
+          disabled={tree.kind !== "ready" || !root || replay !== null}
+          onPick={(hit) => void reveal(hit)}
+        />
         <label className="check">
           <input type="checkbox" checked={includeClosed} onChange={toggleClosed} />
           Show closed
