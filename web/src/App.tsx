@@ -8,12 +8,22 @@ import {
   type ReactElement,
   type ReactNode,
 } from "react";
-import { ApiError, fetchNode, fetchTree, listServers, type TreeQuery } from "./api";
+import {
+  ApiError,
+  fetchHistory,
+  fetchNode,
+  fetchTree,
+  listServers,
+  versionAtLeast,
+  type TreeQuery,
+} from "./api";
 import { DetailPanel, type DetailState } from "./DetailPanel";
-import { clock } from "./format";
-import { Graph } from "./Graph";
+import { clock, spokeId } from "./format";
+import { Graph, type Glow } from "./Graph";
 import { layoutRadial } from "./layout";
 import { Legend } from "./Legend";
+import { buildReplay, changes, describeStep, storeAt, type Replay } from "./replay";
+import { ReplayBar, scopeLabel, type Speed } from "./ReplayBar";
 import {
   ancestors,
   buildStore,
@@ -21,9 +31,11 @@ import {
   initialExpansion,
   knownChildren,
   needsFetch,
+  revealStep,
   ROOT_ID,
 } from "./treeStore";
-import type { ServerEntry, TreeResponse } from "./types";
+import { Search } from "./Search";
+import type { SearchHit, ServerEntry, TreeResponse } from "./types";
 
 /** Levels loaded on a server's first load, and per branch opened later. */
 const FIRST_DEPTH = 3;
@@ -33,6 +45,17 @@ const REFRESH_MS = 30_000;
 const EXPAND_ALL_DEPTH = 10;
 const EXPAND_ALL_LIMIT = 3000;
 const STORAGE_KEY = "spokes-view.server";
+/** Time per replay step at 1×. */
+const STEP_MS = 1200;
+/** How long a change glows (keep in step with the glow animations in styles.css). */
+const GLOW_MS = 2600;
+/** Room the replay bar takes at the top of the graph, so a fit stays clear of it. */
+const REPLAY_BAR_PX = 130;
+
+type ReplayState =
+  | { kind: "loading"; root: number }
+  | { kind: "ready"; root: number; replay: Replay }
+  | { kind: "error"; root: number; message: string };
 
 /** One loaded slice: the query that fetched it, its tag and its body. */
 interface Slice {
@@ -66,6 +89,24 @@ function rememberServer(name: string) {
   if (url.searchParams.get("server") !== name) {
     url.searchParams.set("server", name);
     window.history.replaceState(null, "", url);
+  }
+}
+
+const FULL_GLOW_KEY = "spokes-view.replay-full-glow";
+
+function readFlag(key: string): boolean {
+  try {
+    return localStorage.getItem(key) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function writeFlag(key: string, on: boolean) {
+  try {
+    localStorage.setItem(key, on ? "1" : "0");
+  } catch {
+    // Storage may be disabled; the setting then lasts for this page only.
   }
 }
 
@@ -110,6 +151,14 @@ export function App(): ReactElement {
   const [refreshing, setRefreshing] = useState(false);
   const [expandingAll, setExpandingAll] = useState(false);
   const [expandNote, setExpandNote] = useState<string | null>(null);
+  const [replay, setReplay] = useState<ReplayState | null>(null);
+  const [step, setStep] = useState(0);
+  const [playing, setPlaying] = useState(false);
+  const [speed, setSpeed] = useState<Speed>(1);
+  const [fullGlow, setFullGlow] = useState(() => readFlag(FULL_GLOW_KEY));
+  /** The node search last jumped to: centred once, and glowing for a moment. */
+  const [found, setFound] = useState<{ id: number; key: number } | null>(null);
+  const [glowing, setGlowing] = useState(false);
 
   // The latest values, for async work that outlives a render.
   const slicesRef = useRef(slices);
@@ -122,6 +171,10 @@ export function App(): ReactElement {
   const generation = useRef(0);
   const abort = useRef<AbortController | null>(null);
   const refreshBusy = useRef(false);
+  const replayRef = useRef(replay);
+  useLayoutEffect(() => {
+    replayRef.current = replay;
+  }, [replay]);
 
   const store = useMemo(() => buildStore(slices.map((s) => s.data)), [slices]);
 
@@ -132,6 +185,10 @@ export function App(): ReactElement {
     const ctl = new AbortController();
     abort.current = ctl;
     const previous = keep ? slicesRef.current : [];
+    if (!keep) {
+      setReplay(null);
+      setPlaying(false);
+    }
     setTree({ kind: "loading" });
     setRefreshError(null);
     setExpandNote(null);
@@ -307,6 +364,69 @@ export function App(): ReactElement {
     [server, store, expanded, loading, includeClosed],
   );
 
+  // Jump to a search hit: load the branches down to it, open them, select and centre it.
+  const reveal = useCallback(
+    async (hit: SearchHit) => {
+      if (!server) return;
+      const gen = generation.current;
+      const chain = [...hit.path.map((c) => c.id), hit.id];
+      let work = slicesRef.current;
+      const tried = new Set<number>();
+      try {
+        for (;;) {
+          const next = revealStep(buildStore(work.map((s) => s.data)), chain, tried);
+          if (next.kind === "ready") break;
+          if (next.kind === "blocked")
+            throw new Error(`${spokeId(next.id)} is not in the tree as loaded (closed or moved?)`);
+          const root = next.id;
+          tried.add(root);
+          setLoading((l) => new Set(l).add(root));
+          const q = { root, depth: BRANCH_DEPTH, includeClosed };
+          try {
+            const r = await fetchTree(server, q, null);
+            if (gen !== generation.current) return;
+            if (!r.data) throw new Error("a branch did not load");
+            const data = r.data;
+            work = [...work.filter((s) => s.q.root !== root), { q, etag: r.etag, data }];
+          } finally {
+            setLoading((l) => {
+              const n = new Set(l);
+              n.delete(root);
+              return n;
+            });
+          }
+        }
+        if (work !== slicesRef.current) setSlices(work);
+        setExpanded((ex) => {
+          const n = new Set(ex);
+          for (const a of chain.slice(0, -1)) n.add(a);
+          return n;
+        });
+        setSelected(hit.id);
+        setDetail({ id: hit.id, data: null, etag: null, error: null, loading: true });
+        void loadDetail(server, hit.id, includeClosed, null);
+        setFound((f) => ({ id: hit.id, key: (f?.key ?? 0) + 1 }));
+        setGlowing(true);
+        setRefreshError(null);
+      } catch (e) {
+        if (gen === generation.current)
+          setRefreshError(`Could not show ${spokeId(hit.id)}: ${errorOf(e).message}`);
+      }
+    },
+    [server, includeClosed, loadDetail],
+  );
+
+  // The found node glows once; the glow is dropped after it has played.
+  useEffect(() => {
+    if (!found) return;
+    const t = window.setTimeout(() => setGlowing(false), GLOW_MS);
+    return () => window.clearTimeout(t);
+  }, [found]);
+  const glowFound = useMemo<Glow[]>(
+    () => (found && glowing ? [{ id: found.id, change: "found", step: found.key }] : []),
+    [found, glowing],
+  );
+
   // Open every branch, fetching the ones not loaded yet, up to EXPAND_ALL_LIMIT drawn nodes.
   const expandAll = useCallback(async () => {
     if (!server || expandingAll || tree.kind !== "ready") return;
@@ -404,7 +524,7 @@ export function App(): ReactElement {
 
   useEffect(() => {
     const t = window.setInterval(() => {
-      if (document.visibilityState === "visible") void refresh();
+      if (document.visibilityState === "visible" && !replayRef.current) void refresh();
     }, REFRESH_MS);
     return () => window.clearInterval(t);
   }, [refresh]);
@@ -426,6 +546,106 @@ export function App(): ReactElement {
       layoutRadial(ROOT_ID, (id) => (expanded.has(id) ? knownChildren(store, id) : []), undefined),
     [store, expanded],
   );
+
+  // ---- replay ----
+  const startReplay = useCallback(
+    async (root: number) => {
+      if (!server) return;
+      const gen = generation.current;
+      setReplay({ kind: "loading", root });
+      setPlaying(false);
+      try {
+        const history = await fetchHistory(server, root);
+        if (gen !== generation.current) return;
+        const r = buildReplay(history);
+        setReplay({ kind: "ready", root, replay: r });
+        setStep(0);
+        setFitKey((k) => k + 1);
+        setPlaying(r.steps.length > 0);
+      } catch (e) {
+        if (gen !== generation.current) return;
+        const err = errorOf(e);
+        setReplay({
+          kind: "error",
+          root,
+          message:
+            err.code === "history_unsupported"
+              ? "Replay needs Spokes 0.4.0 or later on this server."
+              : err.code === "not_found"
+                ? `SPOKE-${String(root)} is no longer in the tree.`
+                : `Could not load the history: ${err.message}`,
+        });
+      }
+    },
+    [server],
+  );
+
+  const exitReplay = useCallback(() => {
+    setReplay(null);
+    setPlaying(false);
+    setFitKey((k) => k + 1);
+    void refresh();
+  }, [refresh]);
+
+  const ready = replay?.kind === "ready" ? replay.replay : null;
+  const total = ready?.steps.length ?? 0;
+
+  // Playing: one step per tick, stopping at the end.
+  useEffect(() => {
+    if (!playing || !ready || step >= total) return;
+    const t = window.setTimeout(() => {
+      const next = Math.min(total, step + 1);
+      setStep(next);
+      if (next >= total) setPlaying(false);
+    }, STEP_MS / speed);
+    return () => window.clearTimeout(t);
+  }, [playing, ready, step, total, speed]);
+
+  const replayStore = useMemo(
+    () => (ready ? storeAt(ready, step, includeClosed) : null),
+    [ready, step, includeClosed],
+  );
+  const replayLayout = useMemo(
+    () =>
+      replayStore && ready
+        ? layoutRadial(ready.history.root, (id) => knownChildren(replayStore, id), undefined)
+        : null,
+    [replayStore, ready],
+  );
+  const replayExpanded = useMemo(
+    () => new Set(replayStore ? replayStore.complete : []),
+    [replayStore],
+  );
+  // Glows for the steps recent enough to still be fading (more of them at higher speed).
+  const highlight = useMemo(() => {
+    if (!ready) return [];
+    // At most 12 steps at once: at 16× more would only cost frames, not show more.
+    const window = playing ? Math.min(12, Math.ceil(GLOW_MS / (STEP_MS / speed))) : 1;
+    const out: Glow[] = [];
+    for (let s = Math.max(1, step - window + 1); s <= step; s++)
+      for (const c of changes(ready, s)) {
+        // A change to a hidden node (closed, with "Show closed" off) lights up the
+        // nearest ancestor that is drawn, so the spot still shows.
+        let id: number | null = c.id;
+        const seen = new Set<number>();
+        while (id !== null && !replayStore?.nodes.has(id) && !seen.has(id)) {
+          seen.add(id);
+          id = ready.byId.get(id)?.parent ?? null;
+        }
+        const shown = id;
+        if (shown !== null && replayStore?.nodes.has(shown)) {
+          // One glow per node per step (several hidden children can share an ancestor).
+          if (!out.some((g) => g.step === s && g.id === shown))
+            out.push({ ...c, id: shown, step: s });
+        }
+      }
+    return out;
+  }, [ready, replayStore, step, playing, speed]);
+
+  const canReplay = (entry: ServerEntry | undefined) =>
+    entry?.status === "ok" && versionAtLeast(entry.version, 0, 4);
+  const canSearch = (entry: ServerEntry | undefined) =>
+    entry?.status === "ok" && versionAtLeast(entry.version, 0, 5);
 
   const root = store.nodes.get(ROOT_ID);
   const current = servers?.find((s) => s.name === server);
@@ -455,6 +675,28 @@ export function App(): ReactElement {
           : "Nothing has been added to it yet."}
       </Message>
     );
+  } else if (root && replay?.kind === "ready" && replayStore && replayLayout) {
+    body =
+      replayLayout.nodes.length > 0 ? (
+        <Graph
+          layout={replayLayout}
+          store={replayStore}
+          expanded={replayExpanded}
+          loading={new Set()}
+          selected={selected}
+          fitKey={fitKey}
+          onSelect={select}
+          onToggle={() => undefined}
+          highlight={highlight}
+          follow
+          topInset={REPLAY_BAR_PX}
+          softGlow={fullGlow || !playing || speed === 1}
+        />
+      ) : (
+        <Message title="Nothing here yet">
+          At this point in the history the subtree did not exist yet (or is closed).
+        </Message>
+      );
   } else if (root) {
     body = (
       <Graph
@@ -466,6 +708,8 @@ export function App(): ReactElement {
         fitKey={fitKey}
         onSelect={select}
         onToggle={(id) => void toggle(id)}
+        focusOn={found}
+        highlight={glowFound}
       />
     );
   } else {
@@ -500,6 +744,15 @@ export function App(): ReactElement {
             ))}
           </select>
         </label>
+        <Search
+          // A new server starts with an empty box.
+          key={server ?? ""}
+          server={server}
+          includeClosed={includeClosed}
+          supported={canSearch(current)}
+          disabled={tree.kind !== "ready" || !root || replay !== null}
+          onPick={(hit) => void reveal(hit)}
+        />
         <label className="check">
           <input type="checkbox" checked={includeClosed} onChange={toggleClosed} />
           Show closed
@@ -508,7 +761,7 @@ export function App(): ReactElement {
           type="button"
           className="btn"
           onClick={() => void refresh()}
-          disabled={refreshing || tree.kind === "loading"}
+          disabled={refreshing || tree.kind === "loading" || replay !== null}
         >
           {refreshing ? "Refreshing…" : "Refresh"}
         </button>
@@ -516,7 +769,7 @@ export function App(): ReactElement {
           type="button"
           className="btn"
           onClick={() => void expandAll()}
-          disabled={expandingAll || tree.kind !== "ready" || !root}
+          disabled={expandingAll || tree.kind !== "ready" || !root || replay !== null}
         >
           {expandingAll ? "Expanding…" : "Expand all"}
         </button>
@@ -524,9 +777,24 @@ export function App(): ReactElement {
           type="button"
           className="btn"
           onClick={collapseAll}
-          disabled={expandingAll || tree.kind !== "ready" || expanded.size <= 1}
+          disabled={expandingAll || tree.kind !== "ready" || expanded.size <= 1 || replay !== null}
         >
           Collapse all
+        </button>
+        <button
+          type="button"
+          className="btn"
+          onClick={() => void startReplay(selected ?? ROOT_ID)}
+          disabled={tree.kind !== "ready" || !root || replay !== null || !canReplay(current)}
+          title={
+            canReplay(current)
+              ? selected !== null
+                ? `Replay the history of ${scopeLabel(selected, store.nodes.get(selected)?.title, selected === ROOT_ID)}`
+                : "Replay the history of the whole tree (select a node to replay just its branch)"
+              : "Replay needs Spokes 0.4.0 or later"
+          }
+        >
+          {replay?.kind === "loading" ? "Loading history…" : "Replay"}
         </button>
         <span className="updated" aria-live="polite">
           {changedAt && `Updated ${clock(changedAt)}`}
@@ -544,6 +812,42 @@ export function App(): ReactElement {
       )}
       <main className="main">
         {body}
+        {ready && replay?.kind === "ready" && (
+          <ReplayBar
+            scope={scopeLabel(
+              replay.root,
+              ready.byId.get(replay.root)?.title,
+              replay.root === ROOT_ID,
+            )}
+            step={step}
+            total={total}
+            playing={playing}
+            speed={speed}
+            at={ready.steps[step - 1]?.at ?? null}
+            agent={ready.steps[step - 1]?.agent ?? null}
+            caption={describeStep(ready, step)}
+            firstAt={ready.steps[0]?.at ?? null}
+            timeZone={ready.history.time_zone}
+            truncated={ready.history.truncated}
+            onStep={setStep}
+            onPlay={setPlaying}
+            onSpeed={setSpeed}
+            fullGlow={fullGlow}
+            onFullGlow={(on) => {
+              setFullGlow(on);
+              writeFlag(FULL_GLOW_KEY, on);
+            }}
+            onExit={exitReplay}
+          />
+        )}
+        {replay?.kind === "error" && (
+          <div className="notice warn floating replay-error" role="alert">
+            {replay.message}{" "}
+            <button type="button" className="btn" onClick={() => setReplay(null)}>
+              OK
+            </button>
+          </div>
+        )}
         {tree.kind === "ready" && root && <Legend />}
         {current && current.status !== "ok" && tree.kind !== "error" && (
           <div className="notice warn floating">{current.message}</div>

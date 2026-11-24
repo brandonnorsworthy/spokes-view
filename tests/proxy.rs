@@ -82,6 +82,66 @@ async fn stub_node(
     ([(header::ETAG, "W/\"n.3\"")], axum::Json(body)).into_response()
 }
 
+const HIST_TAG: &str = "W/\"h.7\"";
+const GZ_BODY: &[u8] = b"\x1f\x8bnot-really-gzip";
+
+/// A Spokes 0.4.0 `/api/history`: unknown root 404s, gzip is "applied" when asked.
+async fn stub_history(State(log): State<Log>, RawQuery(q): RawQuery, h: HeaderMap) -> Response {
+    record(&log, "/api/history", &q, &h);
+    if q.as_deref().is_some_and(|q| q.contains("root=404")) {
+        return json_error(StatusCode::NOT_FOUND, "SPOKE-404 does not exist");
+    }
+    if h.get(header::IF_NONE_MATCH).and_then(|v| v.to_str().ok()) == Some(HIST_TAG) {
+        return (StatusCode::NOT_MODIFIED, [(header::ETAG, HIST_TAG)]).into_response();
+    }
+    if h.get(header::ACCEPT_ENCODING).and_then(|v| v.to_str().ok()) == Some("gzip") {
+        return (
+            [
+                (header::ETAG, HIST_TAG),
+                (header::CONTENT_ENCODING, "gzip"),
+                (header::CONTENT_TYPE, "application/json"),
+            ],
+            GZ_BODY,
+        )
+            .into_response();
+    }
+    let body = json!({
+        "rev": 7, "version": "0.4.0", "time_zone": "UTC", "today": "2026-11-15",
+        "root": 1, "path": [], "node_limit": 2000, "event_limit": 5000, "truncated": false,
+        "nodes": [{"id": 1, "parent": null, "title": "To do"}], "events": []
+    });
+    (
+        [
+            (header::ETAG, HIST_TAG),
+            (header::CONTENT_TYPE, "application/json"),
+        ],
+        body.to_string(),
+    )
+        .into_response()
+}
+
+const SEARCH_TAG: &str = "W/\"s.7\"";
+
+/// A Spokes 0.5.0 `/api/search`: scope=404 is an unknown node.
+async fn stub_search(State(log): State<Log>, RawQuery(q): RawQuery, h: HeaderMap) -> Response {
+    record(&log, "/api/search", &q, &h);
+    if q.as_deref().is_some_and(|q| q.contains("scope=404")) {
+        return json_error(StatusCode::NOT_FOUND, "SPOKE-404 does not exist");
+    }
+    if h.get(header::IF_NONE_MATCH).and_then(|v| v.to_str().ok()) == Some(SEARCH_TAG) {
+        return (StatusCode::NOT_MODIFIED, [(header::ETAG, SEARCH_TAG)]).into_response();
+    }
+    let body = json!({"rev": 7, "query": "x", "results": [{"id": 4, "title": "Fuzzy search"}]});
+    (
+        [
+            (header::ETAG, SEARCH_TAG),
+            (header::CONTENT_TYPE, "application/json"),
+        ],
+        body.to_string(),
+    )
+        .into_response()
+}
+
 async fn spawn(router: Router) -> SocketAddr {
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
@@ -96,6 +156,38 @@ async fn new_spokes(log: Log) -> SocketAddr {
             .route("/health", get(|| async { "ok" }))
             .route("/api/tree", get(stub_tree))
             .route("/api/nodes/{id}", get(stub_node))
+            .route(
+                "/api/history",
+                get(|| async {
+                    json_error(
+                        StatusCode::NOT_FOUND,
+                        "no such endpoint; use /api/tree or /api/nodes/{id}",
+                    )
+                }),
+            )
+            .route(
+                "/api/search",
+                get(|| async {
+                    json_error(
+                        StatusCode::NOT_FOUND,
+                        "no such endpoint; use /api/tree, /api/nodes/{id} or /api/history",
+                    )
+                }),
+            )
+            .fallback(|| async { json_error(StatusCode::NOT_FOUND, "no such endpoint") })
+            .with_state(log),
+    )
+    .await
+}
+
+/// A Spokes 0.4.0 stand-in: the 0.2.0 routes plus `/api/history`.
+async fn history_spokes(log: Log) -> SocketAddr {
+    spawn(
+        Router::new()
+            .route("/health", get(|| async { "ok" }))
+            .route("/api/tree", get(stub_tree))
+            .route("/api/history", get(stub_history))
+            .route("/api/search", get(stub_search))
             .fallback(|| async { json_error(StatusCode::NOT_FOUND, "no such endpoint") })
             .with_state(log),
     )
@@ -124,10 +216,11 @@ struct Env {
 async fn start() -> Env {
     let log: Log = Arc::default();
     let new = new_spokes(log.clone()).await;
+    let hist = history_spokes(log.clone()).await;
     let old = old_spokes().await;
     let dead = dead_addr().await;
     let servers = parse_servers(&format!(
-        "New=http://{new},Old=http://{old},Dead=http://{dead}"
+        "New=http://{new},Old=http://{old},Dead=http://{dead},Hist=http://{hist}"
     ))
     .unwrap();
     let config = Config {
@@ -189,7 +282,7 @@ async fn server_list_shows_each_state_without_urls() {
     let (status, v) = env.json("/api/servers").await;
     assert_eq!(status, StatusCode::OK);
     let s = v["servers"].as_array().unwrap();
-    assert_eq!(s.len(), 3);
+    assert_eq!(s.len(), 4);
     assert_eq!(s[0]["name"], "New");
     assert_eq!(s[0]["status"], "ok");
     assert_eq!(s[0]["version"], "0.2.0");
@@ -201,6 +294,8 @@ async fn server_list_shows_each_state_without_urls() {
     );
     assert_eq!(s[2]["name"], "Dead");
     assert_eq!(s[2]["status"], "unreachable");
+    assert_eq!(s[3]["name"], "Hist");
+    assert_eq!(s[3]["status"], "ok");
     assert!(
         !v.to_string().contains("127.0.0.1"),
         "URLs must not leak: {v}"
@@ -269,6 +364,8 @@ async fn unknown_server_is_refused_without_any_upstream_call() {
     for path in [
         "/api/servers/Nope/tree",
         "/api/servers/Nope/nodes/3",
+        "/api/servers/Nope/history",
+        "/api/servers/Nope/search?q=hello",
         "/api/servers/http:%2F%2F127.0.0.1:1%2F/tree",
     ] {
         let (status, v) = env.json(path).await;
@@ -325,7 +422,25 @@ async fn bad_parameters_never_reach_upstream() {
         "/api/servers/New/nodes/x",
         "/api/servers/New/nodes/0",
         "/api/servers/New/nodes/3?depth=1",
+        "/api/servers/Hist/history?root=0",
+        "/api/servers/Hist/history?root=abc",
+        "/api/servers/Hist/history?root=1%26x%3D1",
+        "/api/servers/Hist/history?root=1&root=2",
+        "/api/servers/Hist/history?depth=3",
+        "/api/servers/Hist/history?url=http://evil.example",
         "/api/servers?x=1",
+        "/api/servers/Hist/search",
+        "/api/servers/Hist/search?q=",
+        "/api/servers/Hist/search?q=%20",
+        "/api/servers/Hist/search?q=!!!",
+        &format!("/api/servers/Hist/search?q={}", "a".repeat(201)),
+        "/api/servers/Hist/search?q=a&limit=0",
+        "/api/servers/Hist/search?q=a&limit=51",
+        "/api/servers/Hist/search?q=a&limit=x",
+        "/api/servers/Hist/search?q=a&include_closed=maybe",
+        "/api/servers/Hist/search?q=a&scope=banana",
+        "/api/servers/Hist/search?q=a&root=1",
+        "/api/servers/Hist/search?q=a&q=b",
     ] {
         let (status, v) = env.json(path).await;
         assert_eq!(status, StatusCode::BAD_REQUEST, "{path}: {v}");
@@ -343,4 +458,135 @@ async fn bad_parameters_never_reach_upstream() {
     let (status, v) = env.json("/api/nothing").await;
     assert_eq!(status, StatusCode::NOT_FOUND);
     assert_eq!(v["code"], "not_found");
+}
+
+#[tokio::test]
+async fn history_is_passed_through_with_canonical_parameters() {
+    let env = start().await;
+    let r = env.get("/api/servers/Hist/history").await;
+    assert_eq!(r.status(), StatusCode::OK);
+    assert_eq!(r.headers()[header::ETAG], HIST_TAG);
+    assert_eq!(r.headers()[header::CACHE_CONTROL], "no-cache");
+    let v: Value = serde_json::from_slice(&r.bytes().await.unwrap()).unwrap();
+    assert_eq!(v["version"], "0.4.0");
+
+    let r = env.get("/api/servers/hist/history?root=SPOKE-12").await;
+    assert_eq!(r.status(), StatusCode::OK);
+    assert_eq!(env.seen(), vec!["/api/history", "/api/history?root=12"]);
+}
+
+#[tokio::test]
+async fn history_not_modified_gzip_and_origin() {
+    let env = start().await;
+    let r = env
+        .http
+        .get(format!("{}/api/servers/Hist/history?root=3", env.base))
+        .header(header::IF_NONE_MATCH, HIST_TAG)
+        .header(header::ORIGIN, "http://evil.example")
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(r.status(), StatusCode::NOT_MODIFIED);
+    assert_eq!(r.headers()[header::ETAG], HIST_TAG);
+    assert!(r.bytes().await.unwrap().is_empty());
+
+    let r = env
+        .http
+        .get(format!("{}/api/servers/Hist/history", env.base))
+        .header(header::ACCEPT_ENCODING, "gzip")
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(r.status(), StatusCode::OK);
+    assert_eq!(r.headers()[header::CONTENT_ENCODING], "gzip");
+    assert_eq!(r.bytes().await.unwrap().as_ref(), GZ_BODY);
+    assert_eq!(env.log.lock().unwrap().origins, 0);
+}
+
+#[tokio::test]
+async fn history_errors() {
+    let env = start().await;
+    let (status, v) = env.json("/api/servers/Hist/history?root=404").await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+    assert_eq!(v["code"], "not_found");
+    assert!(v["error"].as_str().unwrap().contains("SPOKE-404"), "{v}");
+
+    // A 0.2.0/0.3.0 answers "no such endpoint", which is not a missing node.
+    let (status, v) = env.json("/api/servers/New/history").await;
+    assert_eq!(status, StatusCode::BAD_GATEWAY);
+    assert_eq!(v["code"], "history_unsupported");
+    assert_eq!(
+        v["error"],
+        "this Spokes server is older than 0.4.0 and has no history API"
+    );
+
+    let (_, v) = env.json("/api/servers/Old/history").await;
+    assert_eq!(v["code"], "too_old");
+    let (_, v) = env.json("/api/servers/Dead/history").await;
+    assert_eq!(v["code"], "unreachable");
+}
+
+#[tokio::test]
+async fn search_is_passed_through_with_canonical_parameters() {
+    let env = start().await;
+    let r = env
+        .get("/api/servers/hist/search?scope=SPOKE-4&q=%20fuzy%20serch%20&include_closed=1&limit=5")
+        .await;
+    assert_eq!(r.status(), StatusCode::OK);
+    assert_eq!(r.headers()[header::ETAG], SEARCH_TAG);
+    assert_eq!(r.headers()[header::CACHE_CONTROL], "no-cache");
+    let v: Value = serde_json::from_slice(&r.bytes().await.unwrap()).unwrap();
+    assert_eq!(v["results"][0]["id"], 4);
+
+    let r = env
+        .get("/api/servers/Hist/search?q=a%26b%3Dc%2B%C3%A9")
+        .await;
+    assert_eq!(r.status(), StatusCode::OK);
+    assert_eq!(
+        env.seen(),
+        vec![
+            "/api/search?q=fuzy%20serch&limit=5&include_closed=true&scope=4",
+            "/api/search?q=a%26b%3Dc%2B%C3%A9",
+        ]
+    );
+}
+
+#[tokio::test]
+async fn search_not_modified_and_origin() {
+    let env = start().await;
+    let r = env
+        .http
+        .get(format!("{}/api/servers/Hist/search?q=abc", env.base))
+        .header(header::IF_NONE_MATCH, SEARCH_TAG)
+        .header(header::ORIGIN, "http://evil.example")
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(r.status(), StatusCode::NOT_MODIFIED);
+    assert_eq!(r.headers()[header::ETAG], SEARCH_TAG);
+    assert!(r.bytes().await.unwrap().is_empty());
+    assert_eq!(env.log.lock().unwrap().origins, 0);
+}
+
+#[tokio::test]
+async fn search_errors() {
+    let env = start().await;
+    let (status, v) = env.json("/api/servers/Hist/search?q=a&scope=404").await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+    assert_eq!(v["code"], "not_found");
+    assert!(v["error"].as_str().unwrap().contains("SPOKE-404"), "{v}");
+
+    // A pre-0.5.0 server answers "no such endpoint", which is not a missing node.
+    let (status, v) = env.json("/api/servers/New/search?q=abc&scope=3").await;
+    assert_eq!(status, StatusCode::BAD_GATEWAY);
+    assert_eq!(v["code"], "search_unsupported");
+    assert_eq!(
+        v["error"],
+        "this Spokes server is older than 0.5.0 and has no search API"
+    );
+
+    let (_, v) = env.json("/api/servers/Old/search?q=abc").await;
+    assert_eq!(v["code"], "too_old");
+    let (_, v) = env.json("/api/servers/Dead/search?q=abc").await;
+    assert_eq!(v["code"], "unreachable");
 }

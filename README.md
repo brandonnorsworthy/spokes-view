@@ -13,7 +13,9 @@ The finished product:
 - **Everything at a glance:** status colours, areas apart from tasks, priority rings, markers for claims, stalled claims, questions waiting on the user, due and overdue dates, the focus list, deferrals, repeats, notes and the actionable next step of an ordered parent.
 - **Details on click:** breadcrumb, every field in readable form (dates in the server's time zone), notes and recent events.
 - **Live enough:** a refresh button and a cheap automatic refresh (ETag/304) that keeps the view, expanded branches and selection.
-- **Later:** search and filter, editing from the UI, authentication, and viewing other trees with the same shape (such as a future Preferences MCP).
+- **Replay:** play a branch's (or the whole tree's) history from its first event, watching it grow, move, get claimed and finish, with each change glowing where it happened.
+- **Find anything:** type part of a name (typos, aliases and words from the notes count) and jump to the node, wherever it is in the tree; filter by status, priority, due date and claims; link straight to a node.
+- **Later:** editing from the UI, authentication, and viewing other trees with the same shape (such as a future Preferences MCP).
 
 It is for one person and the agents working for him, on a home network.
 
@@ -22,7 +24,8 @@ It is for one person and the agents working for him, on a home network.
 | Phase | Scope | Status |
 | --- | --- | --- |
 | **Phase 0, read-only viewer** | One Rust service serving the page and proxying the Spokes read API (0.2.0+); server list from the environment; radial graph with lazy branches, pan/zoom/fit, node appearance and legend, detail panel with notes and events, closed toggle, refresh and 30-second auto-refresh with 304s, server picker (URL + localStorage), clear loading/empty/unreachable/too-old states, phone layout; Docker image, CI, CodeQL, release to GHCR | **Done** (deployed to the homelab 2026-11-15 as `0.1.0`) |
-| Phase 1, find things | Search and filter (by title, status, priority, due, claimed); jump to a node; deep links to a node | Not started |
+| **Replay** | Replay a subtree's history from Spokes 0.4.0's `/api/history`: play/pause, step, 1×/4×/16×, date scrubber, caption per step; changes glow (node halo and lit branch, coloured by kind, with a key); full blur glow at 1× and when paused, optional at higher speeds; the view follows the growing tree; disabled with a message against Spokes older than 0.4.0 | **Done** (`0.2.0`) |
+| Phase 1, find things | Search and filter (by title, status, priority, due, claimed); jump to a node; deep links to a node | **In progress** (**current**): search and jump to a node done in `0.3.0` (needs Spokes 0.5.0); filters and deep links not started |
 | Phase 2, edit from the UI | Status changes, add, move, focus, answer questions, through Spokes' write path | Not started |
 | Phase 3, access | Authentication, so it can be reached beyond the LAN | Not started |
 | Phase 4, other trees | View other trees served with the same API shape (e.g. a Preferences MCP) | Not started |
@@ -30,7 +33,7 @@ It is for one person and the agents working for him, on a home network.
 ## How it works
 
 ```
-browser --(page, /api/servers/{name}/...)--> spokes-view --(GET /api/tree, /api/nodes/{id})--> Spokes 0.2.0+
+browser --(page, /api/servers/{name}/...)--> spokes-view --(GET /api/tree, /api/nodes/{id}, /api/history, /api/search)--> Spokes 0.2.0+
 ```
 
 - One Rust (axum, tokio) binary. The React front-end (`web/`) is built by Vite and embedded into the binary, so the image is one file.
@@ -46,8 +49,10 @@ browser --(page, /api/servers/{name}/...)--> spokes-view --(GET /api/tree, /api/
 | `GET /api/servers` | `{"servers": [{"name", "status", "version", "message"}]}`; each server is probed at once (`GET /api/tree?depth=0`, 3 s): `status` is `ok`, `unreachable`, `too_old` or `error` |
 | `GET /api/servers/{name}/tree?root=&depth=&include_closed=` | Spokes' `/api/tree` passed through unchanged (body, `ETag`, gzip when the browser accepts it). `If-None-Match` is forwarded, so an unchanged tree is a `304` |
 | `GET /api/servers/{name}/nodes/{id}?include_closed=` | Spokes' `/api/nodes/{id}`, the same way |
+| `GET /api/servers/{name}/history?root=` | Spokes' `/api/history` (0.4.0+, the events behind the replay) for the subtree at `root` (default: the whole tree), the same way. A Spokes older than 0.4.0 gives `history_unsupported` |
+| `GET /api/servers/{name}/search?q=&limit=&include_closed=&scope=` | Spokes' `/api/search` (0.5.0+, its `search` tool's ranked matches with breadcrumb ids), the same way. `q` is trimmed, 1 to 200 characters with a letter or digit, and sent upstream percent-encoded; `limit` is 1 to 50. A Spokes older than 0.5.0 gives `search_unsupported` |
 
-Every parameter is checked before anything goes upstream: `root` and `id` are `SPOKE-12` or `12`, `depth` is 0 to 10, `include_closed` is `true`/`false`/`1`/`0`, unknown or repeated parameters are refused, server names match the configured list (case-insensitive). Upstream calls use a 3 s connect and 15 s total timeout and never follow redirects. Errors are `{"error": "...", "code": "..."}`:
+Every parameter is checked before anything goes upstream: `root` (the history route takes only `root`) and `id` are `SPOKE-12` or `12`, `depth` is 0 to 10, `include_closed` is `true`/`false`/`1`/`0`, unknown or repeated parameters are refused, server names match the configured list (case-insensitive). Upstream calls use a 3 s connect and 15 s total timeout and never follow redirects. Errors are `{"error": "...", "code": "..."}`:
 
 | `code` | Status | When |
 | --- | --- | --- |
@@ -56,7 +61,27 @@ Every parameter is checked before anything goes upstream: `root` and `id` are `S
 | `not_found` | 404 | The node is not in that tree (or an unknown endpoint) |
 | `unreachable` | 502 | No connection, or a timeout |
 | `too_old` | 502 | `/health` answers but `/api` does not: "this Spokes server is older than 0.2.0 and has no read API" |
+| `history_unsupported` | 502 | The history route only: Spokes answered "no such endpoint", so it is older than 0.4.0 |
+| `search_unsupported` | 502 | The search route only: Spokes answered "no such endpoint", so it is older than 0.5.0 |
 | `upstream_error` | 502 | Anything else (a 403 from the server's `SPOKES_ALLOWED_HOSTS`, a 500, ...) |
+
+### Replay
+
+**Replay** (header) replays the selected node's branch, or the whole tree when nothing is selected. It needs Spokes 0.4.0 or later: the button is disabled with a note when the server list reports an older version, and a `history_unsupported` error says the same.
+
+- The page fetches the subtree's history once (`/api/servers/{name}/history?root=`: every node, closed ones too, and every event, oldest first, with moves and status changes already parsed by Spokes) and rebuilds the tree in the browser (`web/src/replay.ts`, pure). A **step** is the events one tool call wrote (same instant, same agent), so a nested plan appears at once.
+- What is replayed: which nodes exist, their parent, status, claim and open question. Titles, notes, priority, dates and sibling order show as they are now (the event log keeps no old values). A node moved out of the branch is not shown in that branch's replay. The last step equals the live tree (with the same "Show closed" filter).
+- Controls: ⏮ ◀ ⏯ ▶❘ ⏭, speed 1× (1.2 s a step), 4×, 16×, a scrubber, and keys Space, ←/→, Home/End, Esc. Auto-refresh pauses during replay.
+- Each change glows for about 2.6 s: a halo on the node and its branch lit from the root, coloured by what happened (added, done, claimed, asked, moved, reopened, dropped, edited; key in the bar). A change to a node hidden by the closed filter lights its nearest drawn ancestor. The newest step keeps a steady ring until the next. The blurred glow runs at 1× and when paused; at 4×/16× a cheaper layered stroke is used unless "Full glow at 4×/16×" is ticked (remembered in `localStorage`).
+- The view refits as the tree grows or shrinks, until you pan or zoom.
+
+### Search
+
+The box in the header (press `/` to jump to it) finds nodes with Spokes' own search, so it matches what agents get from the `search` tool: typos, aliases and words in the notes count, and the best matches come first. It needs Spokes 0.5.0 or later; against an older server the box is disabled with that note.
+
+- Results appear as you type (150 ms after the last key; a newer query cancels the one in flight), up to 10, each with a status dot (a square for areas), the title, its id and breadcrumb, and why it matched when the title did not (`alias "nas"`, `in notes`). `+N more` says when to add words. "Show closed" decides whether done and dropped nodes are searched too; when closed matches are hidden the list says so.
+- ↑/↓ move, Enter or a click picks, Esc clears and closes the list (the detail panel stays open).
+- Picking a node loads the branches down to it that are not loaded yet (one `tree` request per gap, using the result's breadcrumb ids), opens them, selects the node (detail panel), centres the view on it and lights it and its branch once. The search box is disabled during replay.
 
 ### The graph
 
@@ -124,7 +149,7 @@ cargo clippy --locked --all-targets -- -D warnings
 cargo test --locked
 ```
 
-`tests/proxy.rs` starts the real service on a random port against stub Spokes servers (a 0.2.0 with `/api`, a 0.1.0 with only `/health`, and a dead address) and checks: the server list and its states (with no URLs leaked), tree pass-through with canonical parameters, 304 pass-through, that a browser's `Origin` is never forwarded, node detail and not-found, unknown server names (no upstream call), unreachable and too-old servers, and that every bad parameter is refused before any upstream call. Unit tests cover config parsing, id/depth/boolean parsing and gzip negotiation. The front-end tests cover the radial layout (spacing on every ring, wedges, thousands of nodes, cycles), merging slices, and date and time formatting.
+`tests/proxy.rs` starts the real service on a random port against stub Spokes servers (a 0.2.0 with `/api`, a 0.1.0 with only `/health`, and a dead address) and checks: the server list and its states (with no URLs leaked), tree pass-through with canonical parameters, 304 pass-through, that a browser's `Origin` is never forwarded, node detail and not-found, unknown server names (no upstream call), unreachable and too-old servers, and that every bad parameter is refused before any upstream call. The search route is checked the same way: canonical upstream parameters with the query percent-encoded, 304 pass-through, no `Origin` forwarded, unknown scope, `search_unsupported` from an older Spokes, and every bad parameter refused before any upstream call. Unit tests cover config parsing, id/depth/boolean parsing, percent-encoding and gzip negotiation. The front-end tests cover replay (moves, claims, recurrence, the closed filter, the last step equalling the live tree, step grouping and glow kinds), the radial layout (spacing on every ring, wedges, thousands of nodes, cycles), merging slices, finding the branches to load on the way to a search result, and date and time formatting.
 
 ## CI and releases
 
@@ -151,4 +176,6 @@ Release process: push to `main`, wait for green, then tag that commit `vX.Y.Z` w
 | `web/src/layout.ts` | The radial layout (pure function) |
 | `web/src/treeStore.ts` | Merging loaded slices into one tree (pure) |
 | `web/src/DetailPanel.tsx`, `web/src/Legend.tsx` | Detail panel and legend |
+| `web/src/Search.tsx` | The search box and its result list |
+| `web/src/replay.ts`, `web/src/ReplayBar.tsx` | Replay: rebuilding the tree at each step (pure), and the replay bar |
 | `web/src/format.ts`, `web/src/api.ts`, `web/src/types.ts` | Formatting and markers, the API client, API types |

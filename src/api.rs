@@ -6,8 +6,12 @@
 //! - `GET /api/servers/{name}/tree?root=&depth=&include_closed=`: a tree slice.
 //! - `GET /api/servers/{name}/nodes/{id}?include_closed=`: one node with notes.
 //!
+//! - `GET /api/servers/{name}/history?root=`: the replay history of a subtree (Spokes 0.4.0+).
+//! - `GET /api/servers/{name}/search?q=&limit=&include_closed=&scope=`: fuzzy search (Spokes 0.5.0+).
+//!
 //! Errors are `{"error": "...", "code": "..."}` with `code` one of `bad_request`,
-//! `unknown_server`, `not_found`, `unreachable`, `too_old`, `upstream_error`.
+//! `unknown_server`, `not_found`, `unreachable`, `too_old`, `history_unsupported`,
+//! `search_unsupported`, `upstream_error`.
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -64,6 +68,8 @@ pub fn router(state: AppState) -> Router {
         .route("/servers", get(servers))
         .route("/servers/{name}/tree", get(tree))
         .route("/servers/{name}/nodes/{id}", get(node))
+        .route("/servers/{name}/history", get(history))
+        .route("/servers/{name}/search", get(search))
         .fallback(|| async { not_found() })
         .method_not_allowed_fallback(|| async {
             ApiError::new(
@@ -134,7 +140,7 @@ fn upstream_error(server: &Server, e: UpstreamError, what: &str) -> ApiError {
         UpstreamError::TooOld => {
             ApiError::new(StatusCode::BAD_GATEWAY, "too_old", upstream::TOO_OLD)
         }
-        UpstreamError::NotFound => ApiError::new(
+        UpstreamError::NotFound(_) => ApiError::new(
             StatusCode::NOT_FOUND,
             "not_found",
             format!("{what} is not in the tree on '{name}' (it may be closed or gone)"),
@@ -376,9 +382,143 @@ async fn node(
     .map_err(|e| upstream_error(server, e, &format!("SPOKE-{id}")))
 }
 
+/// Shown when a Spokes server answers `/api/history` with "no such endpoint".
+const HISTORY_UNSUPPORTED: &str = "this Spokes server is older than 0.4.0 and has no history API";
+
+async fn history(
+    State(state): State<AppState>,
+    Path(name): Path<String>,
+    headers: HeaderMap,
+    query: Result<Query<Vec<(String, String)>>, QueryRejection>,
+) -> Result<Response, ApiError> {
+    let server = state.server(&name)?;
+    let p = params(query, &["root"])?;
+    let (path, what) = match p.get("root") {
+        None => ("/api/history".to_string(), "the tree".to_string()),
+        Some(v) => {
+            let root = parse_id(v, "root")?;
+            (format!("/api/history?root={root}"), format!("SPOKE-{root}"))
+        }
+    };
+    upstream::get(
+        &state.client,
+        server,
+        &path,
+        if_none_match(&headers).as_ref(),
+        accepts_gzip(&headers),
+    )
+    .await
+    .map(pass)
+    .map_err(|e| match e {
+        UpstreamError::NotFound(msg) if upstream::is_missing_endpoint(&msg) => ApiError::new(
+            StatusCode::BAD_GATEWAY,
+            "history_unsupported",
+            HISTORY_UNSUPPORTED,
+        ),
+        e => upstream_error(server, e, &what),
+    })
+}
+
+/// Shown when a Spokes server answers `/api/search` with "no such endpoint".
+const SEARCH_UNSUPPORTED: &str = "this Spokes server is older than 0.5.0 and has no search API";
+
+/// Longest search text Spokes accepts, in characters.
+const MAX_QUERY_CHARS: usize = 200;
+/// Most results Spokes returns.
+const MAX_SEARCH_LIMIT: i64 = 50;
+
+/// Percent-encodes every byte outside the unreserved set (`A-Z a-z 0-9 - . _ ~`).
+fn percent_encode(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    for b in s.bytes() {
+        if b.is_ascii_alphanumeric() || matches!(b, b'-' | b'.' | b'_' | b'~') {
+            out.push(b as char);
+        } else {
+            out.push_str(&format!("%{b:02X}"));
+        }
+    }
+    out
+}
+
+async fn search(
+    State(state): State<AppState>,
+    Path(name): Path<String>,
+    headers: HeaderMap,
+    query: Result<Query<Vec<(String, String)>>, QueryRejection>,
+) -> Result<Response, ApiError> {
+    let server = state.server(&name)?;
+    let p = params(query, &["q", "limit", "include_closed", "scope"])?;
+    let q = p
+        .get("q")
+        .ok_or_else(|| ApiError::bad("q is required"))?
+        .trim();
+    if q.chars().count() > MAX_QUERY_CHARS {
+        return Err(ApiError::bad(format!(
+            "q must be at most {MAX_QUERY_CHARS} characters"
+        )));
+    }
+    if !q.chars().any(char::is_alphanumeric) {
+        return Err(ApiError::bad("q must contain a letter or a digit"));
+    }
+    let limit = match p.get("limit") {
+        None => None,
+        Some(v) => Some(
+            v.trim()
+                .parse::<i64>()
+                .ok()
+                .filter(|n| (1..=MAX_SEARCH_LIMIT).contains(n))
+                .ok_or_else(|| {
+                    ApiError::bad(format!(
+                        "limit must be a whole number from 1 to {MAX_SEARCH_LIMIT}"
+                    ))
+                })?,
+        ),
+    };
+    let include_closed = parse_bool(p.get("include_closed"), "include_closed")?;
+    let scope = match p.get("scope") {
+        None => None,
+        Some(v) => Some(parse_id(v, "scope")?),
+    };
+    let mut path = format!("/api/search?q={}", percent_encode(q));
+    if let Some(limit) = limit {
+        path.push_str(&format!("&limit={limit}"));
+    }
+    if include_closed {
+        path.push_str("&include_closed=true");
+    }
+    if let Some(scope) = scope {
+        path.push_str(&format!("&scope={scope}"));
+    }
+    let what = scope.map_or_else(|| "the tree".to_string(), |id| format!("SPOKE-{id}"));
+    upstream::get(
+        &state.client,
+        server,
+        &path,
+        if_none_match(&headers).as_ref(),
+        accepts_gzip(&headers),
+    )
+    .await
+    .map(pass)
+    .map_err(|e| match e {
+        UpstreamError::NotFound(msg) if upstream::is_missing_endpoint(&msg) => ApiError::new(
+            StatusCode::BAD_GATEWAY,
+            "search_unsupported",
+            SEARCH_UNSUPPORTED,
+        ),
+        e => upstream_error(server, e, &what),
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn percent_encoding() {
+        assert_eq!(percent_encode("fuzy serch"), "fuzy%20serch");
+        assert_eq!(percent_encode("aZ09-._~"), "aZ09-._~");
+        assert_eq!(percent_encode("a&b=c+d/é"), "a%26b%3Dc%2Bd%2F%C3%A9");
+    }
 
     #[test]
     fn ids() {
