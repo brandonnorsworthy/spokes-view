@@ -136,7 +136,10 @@ export function DetailPanel(props: Props): ReactElement {
             )}
             <Row label="Beneath">
               {n.child_count} direct, {n.descendant_count} in all
-              {n.closed_child_count > 0 ? `, ${n.closed_child_count} closed children` : ""}
+              {n.closed_child_count - n.dropped_child_count > 0
+                ? `, ${n.closed_child_count - n.dropped_child_count} done children`
+                : ""}
+              {n.dropped_child_count > 0 ? `, ${n.dropped_child_count} dropped children` : ""}
             </Row>
             {n.unplanned && <Row label="Unplanned">no children and no notes yet</Row>}
             <Row label="Created">{at(n.created_at)}</Row>

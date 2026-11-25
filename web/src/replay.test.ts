@@ -34,6 +34,7 @@ function node(id: number, parent: number | null, over: Partial<ViewNode> = {}): 
     child_count: 0,
     descendant_count: 0,
     closed_child_count: 0,
+    dropped_child_count: 0,
     children_loaded: true,
     ...over,
   };
@@ -77,6 +78,8 @@ function history(nodes: ViewNode[], events: HistoryEvent[], root = 1): HistoryRe
   };
 }
 
+const ALL = { done: true, dropped: true };
+
 const status = (h: HistoryResponse, k: number, id: number): Status | undefined =>
   stateAt(buildReplay(h), k).get(id)?.status;
 
@@ -118,17 +121,17 @@ describe("stepsOf", () => {
 describe("replay", () => {
   it("starts with only nodes that predate their history (the root here)", () => {
     const r = buildReplay(sample());
-    const s = storeAt(r, 0, true);
+    const s = storeAt(r, 0, ALL);
     expect([...s.nodes.keys()]).toEqual([1]);
   });
 
   it("puts a moved node under its original parent first", () => {
     const r = buildReplay(sample());
     // After step 3 (4 created) 4 sits under 2.
-    const s = storeAt(r, 3, true);
+    const s = storeAt(r, 3, ALL);
     expect(knownChildren(s, 2)).toEqual([4]);
     // After the move step it sits under 3.
-    const after = storeAt(r, 5, true);
+    const after = storeAt(r, 5, ALL);
     expect(knownChildren(after, 2)).toEqual([]);
     expect(knownChildren(after, 3)).toEqual([4, 5]);
   });
@@ -144,7 +147,7 @@ describe("replay", () => {
   it("ends on the tree as it is now", () => {
     const h = sample();
     const r = buildReplay(h);
-    const end = storeAt(r, r.steps.length, true);
+    const end = storeAt(r, r.steps.length, ALL);
     for (const n of h.nodes) {
       const got = end.nodes.get(n.id);
       expect(got?.parent).toBe(n.parent);
@@ -153,12 +156,41 @@ describe("replay", () => {
     expect(end.nodes.get(1)?.descendant_count).toBe(5);
   });
 
-  it("hides closed nodes unless asked, like the live view", () => {
-    const r = buildReplay(sample());
-    const end = storeAt(r, r.steps.length, false);
-    expect(end.nodes.has(4)).toBe(false);
-    expect(knownChildren(end, 3)).toEqual([5]);
-    expect(end.nodes.get(3)?.closed_child_count).toBe(1);
+  it("shows done and dropped nodes (with what is under them) only when asked, like the live view", () => {
+    // Add 7 under 3 (then dropped) with a child 8, as the live view would see them.
+    const h = sample();
+    h.nodes.push(node(7, 3, { status: "dropped", title: "Never mind" }), node(8, 7));
+    h.events.push(
+      ev(7, "created", 9),
+      ev(8, "created", 10),
+      ev(7, "status", 11, { from_status: "open", to_status: "dropped" }),
+    );
+    const r = buildReplay(h);
+    const last = r.steps.length;
+
+    // Neither: only the open nodes (4 is done, 7 dropped, 8 hangs under 7).
+    const open = storeAt(r, last, { done: false, dropped: false });
+    expect(knownChildren(open, 3)).toEqual([5]);
+    expect(open.nodes.has(4) || open.nodes.has(7) || open.nodes.has(8)).toBe(false);
+    expect(open.nodes.get(3)?.dropped_child_count).toBe(1);
+    expect(open.nodes.get(3)?.closed_child_count).toBe(2);
+    expect(open.nodes.get(1)?.descendant_count).toBe(4);
+
+    // Done only: 4 appears, 7 and 8 stay out.
+    const done = storeAt(r, last, { done: true, dropped: false });
+    expect(knownChildren(done, 3)).toEqual([4, 5]);
+    expect(done.nodes.get(4)?.status).toBe("done");
+    expect(done.nodes.has(7) || done.nodes.has(8)).toBe(false);
+
+    // Dropped only: 7 and its child appear, 4 stays out.
+    const dropped = storeAt(r, last, { done: false, dropped: true });
+    expect(knownChildren(dropped, 3)).toEqual([5, 7]);
+    expect(dropped.nodes.has(8)).toBe(true);
+    expect(dropped.nodes.has(4)).toBe(false);
+
+    const all = storeAt(r, last, ALL);
+    expect(knownChildren(all, 3)).toEqual([4, 5, 7]);
+    expect(all.nodes.get(1)?.descendant_count).toBe(7);
   });
 
   it("reports which nodes a step touched and what it did", () => {
@@ -215,8 +247,8 @@ describe("replay", () => {
     );
     const r = buildReplay(h);
     // The subtree's root is always drawn as the centre.
-    expect([...storeAt(r, 0, true).nodes.keys()]).toEqual([7]);
-    expect(knownChildren(storeAt(r, r.steps.length, true), 7)).toEqual([8]);
+    expect([...storeAt(r, 0, ALL).nodes.keys()]).toEqual([7]);
+    expect(knownChildren(storeAt(r, r.steps.length, ALL), 7)).toEqual([8]);
   });
 
   it("keeps a node moved in from outside hidden until it arrives", () => {
@@ -230,8 +262,8 @@ describe("replay", () => {
       ],
     );
     const r = buildReplay(h);
-    expect(storeAt(r, 2, true).nodes.has(9)).toBe(false);
-    expect(storeAt(r, 3, true).nodes.has(9)).toBe(true);
+    expect(storeAt(r, 2, ALL).nodes.has(9)).toBe(false);
+    expect(storeAt(r, 3, ALL).nodes.has(9)).toBe(true);
   });
 
   it("handles thousands of events quickly", () => {
@@ -245,7 +277,7 @@ describe("replay", () => {
     }
     const r = buildReplay(history(nodes, events));
     const t = performance.now();
-    const s = storeAt(r, r.steps.length, true);
+    const s = storeAt(r, r.steps.length, ALL);
     expect(s.nodes.size).toBe(2999);
     expect(performance.now() - t).toBeLessThan(500);
   });

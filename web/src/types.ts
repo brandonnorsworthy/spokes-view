@@ -1,6 +1,12 @@
 // Shapes of the Spokes read-only API (spokes `src/store/view.rs`, passed through by the
 // spokes-view backend unchanged) and of the backend's own server list and errors.
 
+/** Which closed nodes the page shows; open nodes always show. */
+export interface Shown {
+  done: boolean;
+  dropped: boolean;
+}
+
 export type Status = "open" | "in_progress" | "waiting" | "done" | "dropped";
 export type Kind = "area" | "task";
 
@@ -39,6 +45,8 @@ export interface ViewNode {
   child_count: number;
   descendant_count: number;
   closed_child_count: number;
+  /** Direct children that are dropped, shown or not (Spokes 0.6.0+). */
+  dropped_child_count: number;
   children_loaded: boolean;
 }
 
@@ -53,6 +61,7 @@ export interface TreeResponse extends Meta {
   root: number;
   depth: number;
   include_closed: boolean;
+  include_dropped: boolean;
   node_limit: number;
   path: Crumb[];
   truncated: boolean;
@@ -111,6 +120,7 @@ export interface SearchResponse extends Meta {
   query: string;
   scope: number;
   include_closed: boolean;
+  include_dropped: boolean;
   keywords: string[];
   /** Matches found, before the limit. */
   total: number;

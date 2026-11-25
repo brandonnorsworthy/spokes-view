@@ -42,6 +42,7 @@ function node(id: number, parent: number | null, over: Partial<ViewNode> = {}): 
     child_count: 0,
     descendant_count: 0,
     closed_child_count: 0,
+    dropped_child_count: 0,
     children_loaded: true,
     ...over,
   };
@@ -56,6 +57,7 @@ function slice(root: number, nodes: ViewNode[], truncated = false): TreeResponse
     root,
     depth: 3,
     include_closed: false,
+    include_dropped: false,
     node_limit: 2000,
     path: [],
     truncated,

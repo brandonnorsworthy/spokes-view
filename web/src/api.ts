@@ -4,6 +4,7 @@ import type {
   NodeResponse,
   SearchResponse,
   ServerEntry,
+  Shown,
   TreeResponse,
 } from "./types";
 
@@ -71,6 +72,11 @@ async function getJson<T>(
 
 const enc = encodeURIComponent;
 
+/** `include_closed` is the done nodes, `include_dropped` the dropped ones (Spokes 0.6.0+). */
+function showParams(show: Shown): string {
+  return `include_closed=${String(show.done)}&include_dropped=${String(show.dropped)}`;
+}
+
 export async function listServers(): Promise<ServerEntry[]> {
   const r = await getJson<{ servers: ServerEntry[] }>("/api/servers", null);
   return r.data?.servers ?? [];
@@ -79,11 +85,11 @@ export async function listServers(): Promise<ServerEntry[]> {
 export interface TreeQuery {
   root: number;
   depth: number;
-  includeClosed: boolean;
+  show: Shown;
 }
 
 export function treeUrl(server: string, q: TreeQuery): string {
-  return `/api/servers/${enc(server)}/tree?root=${q.root}&depth=${q.depth}&include_closed=${q.includeClosed}`;
+  return `/api/servers/${enc(server)}/tree?root=${q.root}&depth=${q.depth}&${showParams(q.show)}`;
 }
 
 export function fetchTree(
@@ -98,12 +104,12 @@ export function fetchTree(
 export function fetchNode(
   server: string,
   id: number,
-  includeClosed: boolean,
+  show: Shown,
   etag: string | null,
   signal?: AbortSignal,
 ): Promise<Fetched<NodeResponse>> {
   return getJson<NodeResponse>(
-    `/api/servers/${enc(server)}/nodes/${id}?include_closed=${includeClosed}`,
+    `/api/servers/${enc(server)}/nodes/${id}?${showParams(show)}`,
     etag,
     signal,
   );
@@ -128,12 +134,12 @@ export async function fetchHistory(
 export async function fetchSearch(
   server: string,
   query: string,
-  includeClosed: boolean,
+  show: Shown,
   limit: number,
   signal?: AbortSignal,
 ): Promise<SearchResponse> {
   const r = await getJson<SearchResponse>(
-    `/api/servers/${enc(server)}/search?q=${enc(query)}&limit=${String(limit)}&include_closed=${String(includeClosed)}`,
+    `/api/servers/${enc(server)}/search?q=${enc(query)}&limit=${String(limit)}&${showParams(show)}`,
     null,
     signal,
   );
