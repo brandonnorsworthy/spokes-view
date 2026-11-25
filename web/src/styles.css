@@ -27,14 +27,12 @@
   --t-chore: #8f97b3;
   --t-idea: #e0af68;
   --t-epic: #bb9af7;
-  --stage-idea: #8f97b3;
-  --stage-backlog: #a9b1d6;
-  --stage-brainstormed: #7dcfff;
-  --stage-understood: #73daca;
-  --stage-planned: #bb9af7;
-  --stage-in-progress: #e0af68;
-  --stage-in-review: #ff9e64;
-  --stage-done: #9ece6a;
+  --t-spike: #2ac3de;
+  --refinement-idea: #8f97b3;
+  --refinement-brainstormed: #7dcfff;
+  --refinement-understood: #73daca;
+  --refinement-planned: #bb9af7;
+  --refinement-ready: #9ece6a;
 
   color-scheme: dark;
   font-family:
@@ -76,14 +74,12 @@
     --t-chore: #6b7390;
     --t-idea: #a8650a;
     --t-epic: #7b4fd1;
-    --stage-idea: #545b76;
-    --stage-backlog: #474f6b;
-    --stage-brainstormed: #0b5f91;
-    --stage-understood: #086456;
-    --stage-planned: #6a3fc0;
-    --stage-in-progress: #824d06;
-    --stage-in-review: #9a440c;
-    --stage-done: #26681b;
+    --t-spike: #0b6e84;
+    --refinement-idea: #545b76;
+    --refinement-brainstormed: #0b5f91;
+    --refinement-understood: #086456;
+    --refinement-planned: #6a3fc0;
+    --refinement-ready: #26681b;
     color-scheme: light;
   }
 }
@@ -887,6 +883,8 @@ a.btn {
 
 /* ---- kanban board ---- */
 .kanban-app {
+  /* Without this a long one-line title would widen the whole page. */
+  grid-template-columns: minmax(0, 1fr);
   grid-template-rows: auto auto 1fr;
 }
 .bar .home {
@@ -896,12 +894,32 @@ a.btn {
 .bar .home:hover {
   text-decoration: underline;
 }
+/* The title gets its own row, on one line, so the controls below never move with its length. */
+.kanban-app .bar h1 {
+  flex: 0 0 100%;
+  min-width: 0;
+  white-space: nowrap;
+}
 .board-title {
+  display: flex;
+  gap: 0.35em;
   font-weight: 400;
   color: var(--muted);
   min-width: 0;
 }
+.board-path,
 .board-title strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* A long path gives way before the node's own title does. */
+.board-path {
+  flex: 0 1000 auto;
+  min-width: 3em;
+}
+.board-title strong {
+  flex: 0 1 auto;
+  min-width: 0;
   color: var(--text);
   font-weight: 650;
 }
@@ -1038,37 +1056,32 @@ a.btn {
   color: var(--t-epic);
   border-color: var(--t-epic);
 }
-.stage-chip {
+.type-chip.t-spike {
+  color: var(--t-spike);
+  border-color: var(--t-spike);
+}
+.refinement-chip {
   color: var(--st, var(--muted));
   border: 1px solid var(--st, var(--line));
   background: color-mix(in srgb, var(--st, transparent) 16%, transparent);
   border-radius: 999px;
 }
 .st-idea {
-  --st: var(--stage-idea);
-}
-.st-backlog {
-  --st: var(--stage-backlog);
+  --st: var(--refinement-idea);
 }
 .st-brainstormed {
-  --st: var(--stage-brainstormed);
+  --st: var(--refinement-brainstormed);
 }
 .st-understood {
-  --st: var(--stage-understood);
+  --st: var(--refinement-understood);
 }
 .st-planned {
-  --st: var(--stage-planned);
+  --st: var(--refinement-planned);
 }
-.st-in_progress {
-  --st: var(--stage-in-progress);
+.st-ready {
+  --st: var(--refinement-ready);
 }
-.st-in_review {
-  --st: var(--stage-in-review);
-}
-.st-done {
-  --st: var(--stage-done);
-}
-.stage-dot {
+.refinement-dot {
   display: inline-block;
   width: 0.7rem;
   height: 0.7rem;

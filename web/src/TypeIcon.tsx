@@ -32,6 +32,13 @@ const ICON_PATHS: Record<NodeType, ReactElement> = {
       <path d="M6.5 6V1.5l3 1-3 1" />
     </>
   ),
+  // A magnifying glass: research that ends in a written answer.
+  spike: (
+    <>
+      <circle cx="6.5" cy="6.5" r="4.5" />
+      <path d="M10 10l4.5 4.5" />
+    </>
+  ),
 };
 
 /** A small line icon for a node's type, coloured by the surrounding text. */

@@ -1,4 +1,4 @@
-import { STAGE_LABEL, STAGES, stageOf, STATUS_LABEL } from "./format";
+import { REFINEMENT_LABEL, REFINEMENTS, refinementOf, STATUS_LABEL } from "./format";
 import type { Crumb, Shown, Status, TreeResponse, ViewNode } from "./types";
 
 /** URL parameter that turns the page into a kanban board of one node's descendants. */
@@ -8,17 +8,17 @@ export const KANBAN_PARAM = "kanban";
 export const GROUP_PARAM = "group";
 
 /** What the board's columns stand for. */
-export type Grouping = "status" | "stage";
+export type Grouping = "status" | "refinement";
 
-/** The grouping from a query string: stage only for `group=stage`, status otherwise. */
+/** The grouping from a query string: refinement only for `group=refinement`, status otherwise. */
 export function groupingFrom(search: string): Grouping {
-  return new URLSearchParams(search).get(GROUP_PARAM) === "stage" ? "stage" : "status";
+  return new URLSearchParams(search).get(GROUP_PARAM) === "refinement" ? "refinement" : "status";
 }
 
 /** The page that shows `id`'s descendants on `server` as a kanban board. */
 export function kanbanUrl(server: string, id: number, group?: Grouping): string {
   const q = new URLSearchParams({ server, [KANBAN_PARAM]: String(id) });
-  if (group === "stage") q.set(GROUP_PARAM, "stage");
+  if (group === "refinement") q.set(GROUP_PARAM, "refinement");
   return `/?${q.toString()}`;
 }
 
@@ -37,7 +37,7 @@ export interface Card {
 }
 
 export interface Column {
-  /** A status, a stage, or "none" for nodes without a stage. */
+  /** A status, a refinement, or "none" for nodes without a refinement. */
   key: string;
   label: string;
   cards: Card[];
@@ -99,10 +99,10 @@ export function buildBoard(slice: TreeResponse, show: Shown, group: Grouping = "
     return out.reverse();
   };
   const columns: Column[] =
-    group === "stage"
+    group === "refinement"
       ? [
-          ...STAGES.map((s) => ({ key: s, label: STAGE_LABEL[s], cards: [] as Card[] })),
-          { key: "none", label: "No stage", cards: [] as Card[] },
+          ...REFINEMENTS.map((s) => ({ key: s, label: REFINEMENT_LABEL[s], cards: [] as Card[] })),
+          { key: "none", label: "No refinement", cards: [] as Card[] },
         ]
       : columnsFor(show).map((s) => ({
           key: s,
@@ -110,7 +110,8 @@ export function buildBoard(slice: TreeResponse, show: Shown, group: Grouping = "
           cards: [] as Card[],
         }));
   const byKey = new Map(columns.map((c) => [c.key, c]));
-  const keyOf = (n: ViewNode): string => (group === "stage" ? (stageOf(n) ?? "none") : n.status);
+  const keyOf = (n: ViewNode): string =>
+    group === "refinement" ? (refinementOf(n) ?? "none") : n.status;
   for (const n of slice.nodes) {
     if (n.id === slice.root) continue;
     const path = pathOf(n);

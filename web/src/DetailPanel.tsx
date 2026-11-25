@@ -5,12 +5,12 @@ import {
   formatInstant,
   markers,
   spokeId,
-  stageOf,
+  refinementOf,
   STATUS_LABEL,
   typeOf,
 } from "./format";
 import type { NodeResponse, ViewNode } from "./types";
-import { StageChip, TypeChip } from "./TypeStageChips";
+import { RefinementChip, TypeChip } from "./TypeRefinementChips";
 import { ViewLinks } from "./ViewLinks";
 
 /** Event details carry UTC instants (e.g. a lease end); show them in the server's zone. */
@@ -89,7 +89,7 @@ export function NodeDetails(props: DetailsProps): ReactElement {
   const at = (iso: string) => formatInstant(iso, tz);
   const due = n ? dueState(n, day) : null;
   const type = n ? typeOf(n) : null;
-  const stage = n ? stageOf(n) : null;
+  const refinement = n ? refinementOf(n) : null;
 
   return (
     <>
@@ -140,9 +140,9 @@ export function NodeDetails(props: DetailsProps): ReactElement {
                 <TypeChip type={type} />
               </Row>
             )}
-            {stage !== null && (
-              <Row label="Stage">
-                <StageChip stage={stage} />
+            {refinement !== null && (
+              <Row label="Refinement">
+                <RefinementChip refinement={refinement} />
               </Row>
             )}
             {n.effective_priority !== null && (

@@ -1,6 +1,6 @@
-import { stageOf, typeOf } from "./format";
+import { refinementOf, typeOf } from "./format";
 import { compareNodes } from "./kanban";
-import type { NodeType, Stage, TreeResponse, ViewNode } from "./types";
+import type { NodeType, Refinement, TreeResponse, ViewNode } from "./types";
 
 /** URL parameter that turns the page into a backlog list of one node's descendants. */
 export const BACKLOG_PARAM = "backlog";
@@ -62,14 +62,14 @@ export function buildOutline(slice: TreeResponse): Row[] {
 export interface RowFilter {
   text: string;
   type: NodeType | "any" | "none";
-  stage: Stage | "any" | "none";
+  refinement: Refinement | "any" | "none";
 }
 
-export const NO_FILTER: RowFilter = { text: "", type: "any", stage: "any" };
+export const NO_FILTER: RowFilter = { text: "", type: "any", refinement: "any" };
 
 /** True when any part of the filter narrows the list. */
 export function isFiltering(f: RowFilter): boolean {
-  return f.text.trim() !== "" || f.type !== "any" || f.stage !== "any";
+  return f.text.trim() !== "" || f.type !== "any" || f.refinement !== "any";
 }
 
 function matchesValue<T extends string>(want: T | "any" | "none", have: T | null): boolean {
@@ -80,11 +80,11 @@ function matchesValue<T extends string>(want: T | "any" | "none", have: T | null
 
 /**
  * True when `n` passes every filter: a title substring or its id as `SPOKE-N` or `N`, plus its
- * own type and stage (never inherited).
+ * own type and refinement (never inherited).
  */
 export function matches(n: ViewNode, filter: RowFilter): boolean {
   if (!matchesValue(filter.type, typeOf(n))) return false;
-  if (!matchesValue(filter.stage, stageOf(n))) return false;
+  if (!matchesValue(filter.refinement, refinementOf(n))) return false;
   const f = filter.text.trim().toLowerCase();
   if (f === "") return true;
   const id = /^(?:spoke-)?(\d+)$/.exec(f);

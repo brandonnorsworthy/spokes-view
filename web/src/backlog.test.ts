@@ -143,12 +143,12 @@ describe("visibleRows", () => {
     expect(matches(n, text("22"))).toBe(false);
   });
 
-  describe("type and stage filters", () => {
+  describe("type and refinement filters", () => {
     const typed = buildOutline(
       slice(1, [
         node(1, null),
-        node(2, 1, { title: "Epic", type: "epic", stage: "in_progress" }),
-        node(3, 2, { title: "Feat", type: "feature", stage: "planned" }),
+        node(2, 1, { title: "Epic", type: "epic", refinement: "ready" }),
+        node(3, 2, { title: "Feat", type: "feature", refinement: "planned" }),
         node(4, 2, { title: "Plain" }),
         node(5, 1, { title: "Bug", type: "bug" }),
       ]),
@@ -159,19 +159,19 @@ describe("visibleRows", () => {
       expect(ids({ ...NO_FILTER, type: "feature" })).toEqual([2, 3]);
     });
 
-    it("filters by stage only", () => {
-      expect(ids({ ...NO_FILTER, stage: "planned" })).toEqual([2, 3]);
-      expect(ids({ ...NO_FILTER, stage: "in_progress" })).toEqual([2]);
+    it("filters by refinement only", () => {
+      expect(ids({ ...NO_FILTER, refinement: "planned" })).toEqual([2, 3]);
+      expect(ids({ ...NO_FILTER, refinement: "ready" })).toEqual([2]);
     });
 
     it("none matches nodes without a value, judged on their own", () => {
       expect(ids({ ...NO_FILTER, type: "none" })).toEqual([2, 4]);
-      expect(ids({ ...NO_FILTER, stage: "none" })).toEqual([2, 4, 5]);
+      expect(ids({ ...NO_FILTER, refinement: "none" })).toEqual([2, 4, 5]);
     });
 
     it("combines text with type", () => {
-      expect(ids({ text: "feat", type: "feature", stage: "any" })).toEqual([2, 3]);
-      expect(ids({ text: "bug", type: "feature", stage: "any" })).toEqual([]);
+      expect(ids({ text: "feat", type: "feature", refinement: "any" })).toEqual([2, 3]);
+      expect(ids({ text: "bug", type: "feature", refinement: "any" })).toEqual([]);
     });
   });
 });

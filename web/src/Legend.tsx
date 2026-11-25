@@ -1,5 +1,12 @@
 import { useState, type ReactElement } from "react";
-import { MARKER_LEGEND, NODE_TYPES, STAGES, STAGE_LABEL, STATUS_LABEL, TYPE_LABEL } from "./format";
+import {
+  MARKER_LEGEND,
+  NODE_TYPES,
+  REFINEMENTS,
+  REFINEMENT_LABEL,
+  STATUS_LABEL,
+  TYPE_LABEL,
+} from "./format";
 import { TypeIcon } from "./TypeIcon";
 import type { Status } from "./types";
 
@@ -41,12 +48,12 @@ export function Legend(): ReactElement {
               </li>
             ))}
           </ul>
-          <h4>Stage</h4>
+          <h4>Refinement</h4>
           <ul>
-            {STAGES.map((s) => (
+            {REFINEMENTS.map((s) => (
               <li key={s}>
-                <span className={`stage-dot st-${s}`} aria-hidden="true" />
-                {STAGE_LABEL[s]}
+                <span className={`refinement-dot st-${s}`} aria-hidden="true" />
+                {REFINEMENT_LABEL[s]}
               </li>
             ))}
           </ul>

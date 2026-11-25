@@ -1,4 +1,4 @@
-import type { NodeType, Stage, Status, ViewNode } from "./types";
+import type { NodeType, Refinement, Status, ViewNode } from "./types";
 
 export const STATUS_LABEL: Record<Status, string> = {
   open: "open",
@@ -8,17 +8,14 @@ export const STATUS_LABEL: Record<Status, string> = {
   dropped: "dropped",
 };
 
-export const NODE_TYPES: readonly NodeType[] = ["bug", "feature", "chore", "idea", "epic"];
+export const NODE_TYPES: readonly NodeType[] = ["bug", "feature", "chore", "idea", "epic", "spike"];
 
-export const STAGES: readonly Stage[] = [
+export const REFINEMENTS: readonly Refinement[] = [
   "idea",
-  "backlog",
   "brainstormed",
   "understood",
   "planned",
-  "in_progress",
-  "in_review",
-  "done",
+  "ready",
 ];
 
 export const TYPE_LABEL: Record<NodeType, string> = {
@@ -27,17 +24,15 @@ export const TYPE_LABEL: Record<NodeType, string> = {
   chore: "chore",
   idea: "idea",
   epic: "epic",
+  spike: "spike",
 };
 
-export const STAGE_LABEL: Record<Stage, string> = {
+export const REFINEMENT_LABEL: Record<Refinement, string> = {
   idea: "idea",
-  backlog: "backlog",
   brainstormed: "brainstormed",
   understood: "understood",
   planned: "planned",
-  in_progress: "in progress",
-  in_review: "in review",
-  done: "done",
+  ready: "ready",
 };
 
 /** The node's type; `null` when missing (pre-0.4.0 server), unset or a value this app does not know. */
@@ -45,9 +40,9 @@ export function typeOf(n: ViewNode): NodeType | null {
   return NODE_TYPES.find((t) => t === n.type) ?? null;
 }
 
-/** The node's stage; `null` when missing, unset or unknown. */
-export function stageOf(n: ViewNode): Stage | null {
-  return STAGES.find((s) => s === n.stage) ?? null;
+/** The node's refinement; `null` when missing, unset or unknown. */
+export function refinementOf(n: ViewNode): Refinement | null {
+  return REFINEMENTS.find((s) => s === n.refinement) ?? null;
 }
 
 export function spokeId(id: number): string {
