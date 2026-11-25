@@ -1,0 +1,7 @@
+# Accepted until 2026-12-26 (Brandon approved 2026-11-25, Spokes to-do SPOKE-673 follow-up):
+# libzstd1 1.5.7+dfsg-1 comes from the distroless base image (gcr.io/distroless/cc-debian13:nonroot).
+# The spokes-view binary does not link libzstd (readelf: only libc, libm, libgcc_s, ld-linux) and never
+# decompresses zstd data. Fixed in Debian as 1.5.7+dfsg-1+deb13u1, not yet in distroless.
+# Remove this entry as soon as the base image ships the fix (the weekly base-image-watch workflow
+# turns red when that happens). Do not add package-wide or severity-wide ignores here.
+CVE-2026-124851 exp:2026-12-26

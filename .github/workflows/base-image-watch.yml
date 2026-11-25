@@ -1,0 +1,38 @@
+name: base-image-watch
+
+# Tells us when the distroless base image has been rebuilt without the libzstd1 CVE that
+# .trivyignore accepts until 2026-12-26. It scans the base image alone, without this repo's
+# .trivyignore (no checkout), and goes red once CVE-2026-124851 is gone: the cue to delete
+# that entry and re-release. Green means "still vulnerable, exception still needed".
+on:
+  schedule:
+    - cron: "17 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  watch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Scan the distroless base image
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: gcr.io/distroless/cc-debian13:nonroot
+          ignore-unfixed: true
+          format: json
+          output: trivy-base.json
+          exit-code: "0"
+          severity: HIGH,CRITICAL
+          scanners: vuln
+
+      - name: Fail once the CVE is gone from the base image
+        run: |
+          if grep -q 'CVE-2026-124851' trivy-base.json; then
+            echo "CVE-2026-124851 is still in the distroless base image; the .trivyignore exception is still needed."
+          else
+            echo "::error::CVE-2026-124851 is no longer in gcr.io/distroless/cc-debian13:nonroot. Remove its line from .trivyignore, then re-release."
+            exit 1
+          fi
