@@ -20,14 +20,14 @@ import {
   markers,
   NODE_TYPES,
   spokeId,
-  STAGE_LABEL,
-  STAGES,
+  REFINEMENT_LABEL,
+  REFINEMENTS,
   STATUS_LABEL,
   TYPE_LABEL,
 } from "./format";
 import { kanbanUrl } from "./kanban";
 import { NodeModal } from "./NodeModal";
-import { TypeStageChips } from "./TypeStageChips";
+import { TypeRefinementChips } from "./TypeRefinementChips";
 import { useSubtree } from "./useSubtree";
 import { ViewLinks } from "./ViewLinks";
 
@@ -166,20 +166,20 @@ export function BacklogApp({ server, rootId }: Props): ReactElement {
           </select>
         </label>
         <label className="filter">
-          <span className="sr-only">Stage</span>
+          <span className="sr-only">Refinement</span>
           <select
-            value={filter.stage}
+            value={filter.refinement}
             onChange={(e) =>
-              setFilter((f) => ({ ...f, stage: e.target.value as RowFilter["stage"] }))
+              setFilter((f) => ({ ...f, refinement: e.target.value as RowFilter["refinement"] }))
             }
           >
-            <option value="any">Any stage</option>
-            {STAGES.map((st) => (
+            <option value="any">Any refinement</option>
+            {REFINEMENTS.map((st) => (
               <option key={st} value={st}>
-                {STAGE_LABEL[st]}
+                {REFINEMENT_LABEL[st]}
               </option>
             ))}
-            <option value="none">No stage</option>
+            <option value="none">No refinement</option>
           </select>
         </label>
         <label className="check">
@@ -284,7 +284,7 @@ function BacklogRow({
         <span className="row-meta">
           <span className="mono">{spokeId(n.id)}</span>
           {n.kind === "area" && <span className="chip">area</span>}
-          <TypeStageChips node={n} />
+          <TypeRefinementChips node={n} />
           {prio !== null && (
             <span className={`chip prio-chip p${prio}`} title={`Priority ${prio}`}>
               P{prio}

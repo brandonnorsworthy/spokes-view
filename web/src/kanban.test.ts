@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { STAGES } from "./format";
+import { REFINEMENTS } from "./format";
 import { buildBoard, columnsFor, groupingFrom, kanbanRootFrom, kanbanUrl } from "./kanban";
 import type { TreeResponse, ViewNode } from "./types";
 
@@ -74,9 +74,9 @@ describe("kanban urls", () => {
   it("round-trips the grouping", () => {
     expect(kanbanUrl("s", 4)).toBe("/?server=s&kanban=4");
     expect(kanbanUrl("s", 4, "status")).toBe("/?server=s&kanban=4");
-    const url = kanbanUrl("s", 4, "stage");
-    expect(url).toBe("/?server=s&kanban=4&group=stage");
-    expect(groupingFrom(url.slice(1))).toBe("stage");
+    const url = kanbanUrl("s", 4, "refinement");
+    expect(url).toBe("/?server=s&kanban=4&group=refinement");
+    expect(groupingFrom(url.slice(1))).toBe("refinement");
     expect(kanbanRootFrom(url.slice(1))).toBe(4);
     expect(groupingFrom("?kanban=4")).toBe("status");
     expect(groupingFrom("?group=other")).toBe("status");
@@ -154,29 +154,29 @@ describe("buildBoard", () => {
   });
 });
 
-describe("buildBoard by stage", () => {
+describe("buildBoard by refinement", () => {
   const tree = slice(1, [
     node(1, null),
-    node(2, 1, { stage: "idea" }),
-    node(3, 1, { stage: "planned" }),
-    node(4, 1, { stage: "done", status: "done" }),
+    node(2, 1, { refinement: "idea" }),
+    node(3, 1, { refinement: "planned" }),
+    node(4, 1, { refinement: "ready", status: "done" }),
     node(5, 1),
-    node(6, 1, { stage: "bogus" as never }),
+    node(6, 1, { refinement: "bogus" as never }),
   ]);
 
-  it("has a column per stage in order, then No stage", () => {
-    const cols = buildBoard(tree, NONE, "stage");
-    expect(cols.map((c) => c.key)).toEqual([...STAGES, "none"]);
-    expect(cols).toHaveLength(9);
-    expect(cols[cols.length - 1]?.label).toBe("No stage");
+  it("has a column per refinement in order, then No refinement", () => {
+    const cols = buildBoard(tree, NONE, "refinement");
+    expect(cols.map((c) => c.key)).toEqual([...REFINEMENTS, "none"]);
+    expect(cols).toHaveLength(6);
+    expect(cols[cols.length - 1]?.label).toBe("No refinement");
   });
 
-  it("puts each node in its stage column and the rest in No stage", () => {
-    const cols = buildBoard(tree, NONE, "stage");
+  it("puts each node in its refinement column and the rest in No refinement", () => {
+    const cols = buildBoard(tree, NONE, "refinement");
     const ids = (k: string) => cols.find((c) => c.key === k)?.cards.map((c) => c.node.id) ?? [];
     expect(ids("idea")).toEqual([2]);
     expect(ids("planned")).toEqual([3]);
-    expect(ids("done")).toEqual([4]);
+    expect(ids("ready")).toEqual([4]);
     expect(ids("none")).toEqual([5, 6]);
   });
 });

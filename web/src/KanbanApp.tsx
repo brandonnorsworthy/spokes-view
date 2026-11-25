@@ -3,7 +3,7 @@ import { backlogUrl } from "./backlog";
 import { clock, markers, spokeId } from "./format";
 import { buildBoard, GROUP_PARAM, groupingFrom, type Card, type Grouping } from "./kanban";
 import { NodeModal } from "./NodeModal";
-import { TypeStageChips } from "./TypeStageChips";
+import { TypeRefinementChips } from "./TypeRefinementChips";
 import { useSubtree } from "./useSubtree";
 import { ViewLinks } from "./ViewLinks";
 
@@ -12,7 +12,7 @@ interface Props {
   rootId: number;
 }
 
-/** A kanban board of every node beneath `rootId`, one column per status or stage. */
+/** A kanban board of every node beneath `rootId`, one column per status or refinement. */
 export function KanbanApp({ server, rootId }: Props): ReactElement {
   const {
     show,
@@ -32,7 +32,7 @@ export function KanbanApp({ server, rootId }: Props): ReactElement {
   const changeGroup = (next: Grouping): void => {
     setGroup(next);
     const url = new URL(window.location.href);
-    if (next === "stage") url.searchParams.set(GROUP_PARAM, "stage");
+    if (next === "refinement") url.searchParams.set(GROUP_PARAM, "refinement");
     else url.searchParams.delete(GROUP_PARAM);
     window.history.replaceState(window.history.state, "", url);
   };
@@ -76,8 +76,8 @@ export function KanbanApp({ server, rootId }: Props): ReactElement {
               {group === "status" && (
                 <span className={`status-dot s-${col.key}`} aria-hidden="true" />
               )}
-              {group === "stage" && col.key !== "none" && (
-                <span className={`stage-dot st-${col.key}`} aria-hidden="true" />
+              {group === "refinement" && col.key !== "none" && (
+                <span className={`refinement-dot st-${col.key}`} aria-hidden="true" />
               )}
               {col.label}
               <span className="count">{col.cards.length}</span>
@@ -123,7 +123,7 @@ export function KanbanApp({ server, rootId }: Props): ReactElement {
             onChange={(e) => changeGroup(groupingFrom(`?group=${e.target.value}`))}
           >
             <option value="status">Group by status</option>
-            <option value="stage">Group by stage</option>
+            <option value="refinement">Group by refinement</option>
           </select>
         </label>
         <label className="check">
@@ -195,7 +195,7 @@ function KanbanCard({
       <span className="card-meta">
         <span className="mono">{spokeId(n.id)}</span>
         {n.kind === "area" && <span className="chip">area</span>}
-        <TypeStageChips node={n} />
+        <TypeRefinementChips node={n} />
         {prio !== null && (
           <span className={`chip prio-chip p${prio}`} title={`Priority ${prio}`}>
             P{prio}

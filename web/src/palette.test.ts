@@ -2,16 +2,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
-const STAGES = [
-  "idea",
-  "backlog",
-  "brainstormed",
-  "understood",
-  "planned",
-  "in-progress",
-  "in-review",
-  "done",
-];
+const REFINEMENTS = ["idea", "brainstormed", "understood", "planned", "ready"];
 
 const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
 const lightStart = css.indexOf("@media (prefers-color-scheme: light)");
@@ -53,13 +44,13 @@ function tint([fr, fg, fb]: Rgb, [br, bg, bb]: Rgb, amount: number): Rgb {
   return [mix(fr, br), mix(fg, bg), mix(fb, bb)];
 }
 
-describe("stage palette", () => {
+describe("refinement palette", () => {
   for (const [theme, block] of Object.entries(themes)) {
     describe(theme, () => {
-      for (const stage of STAGES) {
-        it(`${stage} is defined and readable (>= 4.5:1)`, () => {
+      for (const refinement of REFINEMENTS) {
+        it(`${refinement} is defined and readable (>= 4.5:1)`, () => {
           const bg = rgb(variable(block, "bg"));
-          const fg = rgb(variable(block, `stage-${stage}`));
+          const fg = rgb(variable(block, `refinement-${refinement}`));
           expect(contrast(fg, bg)).toBeGreaterThanOrEqual(4.5);
           expect(contrast(fg, tint(fg, bg, 0.16))).toBeGreaterThanOrEqual(4.5);
         });
@@ -67,8 +58,8 @@ describe("stage palette", () => {
     });
   }
 
-  it("uses 8 distinct dark colours", () => {
-    const values = STAGES.map((s) => variable(themes.dark ?? "", `stage-${s}`));
-    expect(new Set(values).size).toBe(8);
+  it("uses 5 distinct dark colours", () => {
+    const values = REFINEMENTS.map((s) => variable(themes.dark ?? "", `refinement-${s}`));
+    expect(new Set(values).size).toBe(5);
   });
 });

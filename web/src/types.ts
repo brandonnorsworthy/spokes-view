@@ -9,16 +9,8 @@ export interface Shown {
 
 export type Status = "open" | "in_progress" | "waiting" | "done" | "dropped";
 export type Kind = "area" | "task";
-export type NodeType = "bug" | "feature" | "chore" | "idea" | "epic";
-export type Stage =
-  | "idea"
-  | "backlog"
-  | "brainstormed"
-  | "understood"
-  | "planned"
-  | "in_progress"
-  | "in_review"
-  | "done";
+export type NodeType = "bug" | "feature" | "chore" | "idea" | "epic" | "spike";
+export type Refinement = "idea" | "brainstormed" | "understood" | "planned" | "ready";
 
 export interface Crumb {
   id: number;
@@ -34,7 +26,7 @@ export interface ViewNode {
   status: Status;
   /** Absent on servers older than Spokes 0.4.0. */
   type?: NodeType | null;
-  stage?: Stage | null;
+  refinement?: Refinement | null;
   priority: number | null;
   effective_priority: number | null;
   focus: number | null;
