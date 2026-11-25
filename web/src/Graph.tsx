@@ -2,20 +2,19 @@ import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useStat
 import type { KeyboardEvent, MouseEvent, ReactElement } from "react";
 import type { Layout, NodePos } from "./layout";
 import { clip, isAlert, markers, spokeId, STATUS_LABEL } from "./format";
+import { easeInOut, focusTarget, interpolateView, labelFlip } from "./focus";
+import type { View } from "./focus";
 import type { Store } from "./treeStore";
 import { missingChildren, needsFetch } from "./treeStore";
 import type { ViewNode } from "./types";
-
-interface View {
-  x: number;
-  y: number;
-  k: number;
-}
+import { glyphScale, onScreenGrowth } from "./zoomScale";
 
 const MIN_K = 0.01;
 const MAX_K = 4;
 /** Label font size on screen, px. */
 const FONT = 13.5;
+/** How long a click-to-focus animation runs, ms. */
+const FOCUS_MS = 450;
 /** Zoom levels are bucketed so labels re-render only when the zoom moves a step. */
 const LOD_STEP = 1.2;
 
@@ -50,23 +49,39 @@ export interface GraphProps {
   topInset?: number;
   /** Centre the view on `id` once it is laid out; a new `key` asks again (search). */
   focusOn?: { id: number; key: number } | null;
+  /** Right-click (or the menu key) on a node, at a point in viewport pixels. */
+  onMenu: (id: number, x: number, y: number) => void;
 }
 
 export function Graph(props: GraphProps): ReactElement {
-  const { layout, store, expanded, loading, selected, fitKey, onSelect, onToggle, highlight } =
-    props;
+  const {
+    layout,
+    store,
+    expanded,
+    loading,
+    selected,
+    fitKey,
+    onSelect,
+    onToggle,
+    highlight,
+    onMenu,
+  } = props;
   const follow = props.follow ?? false;
   const topInset = props.topInset ?? 0;
   const svgRef = useRef<SVGSVGElement>(null);
   const viewportRef = useRef<SVGGElement>(null);
   const boxRef = useRef<HTMLDivElement>(null);
-  const view = useRef<View>({ x: 0, y: 0, k: 1 });
+  const view = useRef<View>({ x: 0, y: 0, k: 1, r: 0 });
   const [lod, setLod] = useState(1);
+  /** The committed rotation: labels are laid out for it. */
+  const [rot, setRot] = useState(0);
+  /** Animation frame of a running click-to-focus, 0 when none. */
+  const focusFrame = useRef(0);
   const frame = useRef(0);
   const dragged = useRef(false);
 
   /** The view last written into the SVG; while a gesture runs, `view` moves ahead of it. */
-  const committed = useRef<View>({ x: 0, y: 0, k: 1 });
+  const committed = useRef<View>({ x: 0, y: 0, k: 1, r: 0 });
   const idle = useRef(0);
 
   // Writes the view into the SVG and re-buckets the zoom (labels may change).
@@ -76,10 +91,25 @@ export function Graph(props: GraphProps): ReactElement {
     const v = view.current;
     committed.current = v;
     const svg = svgRef.current;
-    viewportRef.current?.setAttribute("transform", `translate(${v.x} ${v.y}) scale(${v.k})`);
+    viewportRef.current?.setAttribute(
+      "transform",
+      `translate(${v.x} ${v.y}) rotate(${v.r}) scale(${v.k})`,
+    );
     if (svg) svg.style.transform = "";
     const b = bucket(v.k);
     setLod((old) => (old === b ? old : b));
+    setRot((old) => (old === v.r ? old : v.r));
+  }, []);
+
+  // Moves the composited SVG layer to show `view` relative to the committed view.
+  const paint = useCallback(() => {
+    const v = view.current;
+    const c = committed.current;
+    const s = v.k / c.k;
+    const svg = svgRef.current;
+    if (svg) {
+      svg.style.transform = `translate(${v.x}px, ${v.y}px) rotate(${v.r - c.r}deg) scale(${s}) translate(${-c.x}px, ${-c.y}px)`;
+    }
   }, []);
 
   // During a pan or zoom only the composited SVG layer moves (a CSS transform relative
@@ -96,24 +126,27 @@ export function Graph(props: GraphProps): ReactElement {
       if (!frame.current) {
         frame.current = requestAnimationFrame(() => {
           frame.current = 0;
-          const v = view.current;
-          const c = committed.current;
-          const s = v.k / c.k;
-          const svg = svgRef.current;
-          if (svg) {
-            svg.style.transform = `translate(${v.x - s * c.x}px, ${v.y - s * c.y}px) scale(${s})`;
-          }
+          paint();
         });
       }
       window.clearTimeout(idle.current);
       idle.current = window.setTimeout(commit, 160);
     },
-    [commit],
+    [commit, paint],
   );
+
+  // Stops a click-to-focus where it is (the user took over the view).
+  const stopFocus = useCallback(() => {
+    if (!focusFrame.current) return;
+    cancelAnimationFrame(focusFrame.current);
+    focusFrame.current = 0;
+    apply();
+  }, [apply]);
 
   useEffect(
     () => () => {
       cancelAnimationFrame(frame.current);
+      cancelAnimationFrame(focusFrame.current);
       window.clearTimeout(idle.current);
     },
     [],
@@ -125,18 +158,20 @@ export function Graph(props: GraphProps): ReactElement {
   const zoomAt = useCallback(
     (factor: number, cx: number, cy: number) => {
       userMoved.current = true;
+      stopFocus();
       const v = view.current;
       const k = Math.min(MAX_K, Math.max(MIN_K, v.k * factor));
       const f = k / v.k;
-      view.current = { k, x: cx - (cx - v.x) * f, y: cy - (cy - v.y) * f };
+      view.current = { k, r: v.r, x: cx - (cx - v.x) * f, y: cy - (cy - v.y) * f };
       apply();
     },
-    [apply],
+    [apply, stopFocus],
   );
 
   const fit = useCallback(() => {
     const svg = svgRef.current;
     if (!svg) return;
+    stopFocus();
     const w = svg.clientWidth || 800;
     const top = Math.min(topInset, (svg.clientHeight || 600) / 2);
     const h = (svg.clientHeight || 600) - top;
@@ -152,10 +187,44 @@ export function Graph(props: GraphProps): ReactElement {
     );
     const cx = (b.minX + b.maxX) / 2;
     const cy = (b.minY + b.maxY) / 2;
-    view.current = { k, x: w / 2 - cx * k, y: top + h / 2 - cy * k };
+    // Fitting also turns the tree back north-up.
+    view.current = { k, r: 0, x: w / 2 - cx * k, y: top + h / 2 - cy * k };
     userMoved.current = false;
     apply(true);
-  }, [layout, apply, topInset]);
+  }, [layout, apply, topInset, stopFocus]);
+
+  // Click-to-focus: turn the tree so the node's label reads horizontally, glide the node
+  // to the centre and zoom in. Frames use the composited fast path; the end commits.
+  const focusNode = useCallback(
+    (id: number) => {
+      const p = layout.byId.get(id);
+      const svg = svgRef.current;
+      if (!p || !svg) return;
+      cancelAnimationFrame(focusFrame.current);
+      userMoved.current = true;
+      const from = view.current;
+      // The target is worked out each frame from the graph's current size: selecting the
+      // node opens the detail panel, which narrows the graph after this click.
+      const target = () =>
+        focusTarget(from, p, { x: (svg.clientWidth || 800) / 2, y: (svg.clientHeight || 600) / 2 });
+      const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      const t0 = performance.now();
+      const step = (now: number) => {
+        const t = reduce ? 1 : Math.min(1, (now - t0) / FOCUS_MS);
+        const to = target();
+        view.current = t < 1 ? interpolateView(from, to, p, easeInOut(t)) : to;
+        if (t < 1) {
+          paint();
+          focusFrame.current = requestAnimationFrame(step);
+        } else {
+          focusFrame.current = 0;
+          apply(true);
+        }
+      };
+      focusFrame.current = requestAnimationFrame(step);
+    },
+    [layout, apply, paint],
+  );
 
   // Fit on a new server's first layout; later layouts (refresh, expand) keep the view.
   const fitted = useRef(-1);
@@ -175,14 +244,8 @@ export function Graph(props: GraphProps): ReactElement {
     const svg = svgRef.current;
     if (!p || !svg) return;
     focused.current = focusOn.key;
-    const w = svg.clientWidth || 800;
-    const h = svg.clientHeight || 600;
-    // Close enough to read the neighbourhood, never further out than now.
-    const k = Math.min(MAX_K, Math.max(view.current.k, 1));
-    view.current = { k, x: w / 2 - p.x * k, y: h / 2 - p.y * k };
-    userMoved.current = true;
-    apply(true);
-  }, [focusOn, layout, apply]);
+    focusNode(focusOn.id);
+  }, [focusOn, layout, focusNode]);
 
   // Following a growing tree: refit once it is a good deal larger than at the last fit.
   const fittedSize = useRef({ key: -1, size: 0 });
@@ -238,6 +301,7 @@ export function Graph(props: GraphProps): ReactElement {
       if (start && Math.hypot(p.x - start.x, p.y - start.y) > 4 && !dragged.current) {
         dragged.current = true;
         userMoved.current = true;
+        stopFocus();
         try {
           svg.setPointerCapture(e.pointerId);
         } catch {
@@ -284,7 +348,7 @@ export function Graph(props: GraphProps): ReactElement {
       svg.removeEventListener("pointerup", onUp);
       svg.removeEventListener("pointercancel", onUp);
     };
-  }, [zoomAt, apply]);
+  }, [zoomAt, apply, stopFocus]);
 
   const idFrom = (target: EventTarget | null): number | null => {
     const el = (target as Element | null)?.closest("[data-id]");
@@ -297,17 +361,31 @@ export function Graph(props: GraphProps): ReactElement {
     const toggle = (e.target as Element).closest("[data-toggle]");
     const id = idFrom(e.target);
     if (id === null) return;
-    if (toggle) onToggle(id);
-    else onSelect(id);
+    if (toggle) {
+      onToggle(id);
+    } else {
+      onSelect(id);
+      focusNode(id);
+    }
   };
   const onDoubleClick = (e: MouseEvent) => {
     const id = idFrom(e.target);
     if (id !== null) onToggle(id);
   };
+  const onContextMenu = (e: MouseEvent) => {
+    const id = idFrom(e.target);
+    if (id === null) return;
+    e.preventDefault();
+    onMenu(id, e.clientX, e.clientY);
+  };
   const onKeyDown = (e: KeyboardEvent) => {
     const id = idFrom(e.target);
     if (id === null) return;
-    if (e.key === "Enter") {
+    if (e.key === "ContextMenu" || (e.key === "F10" && e.shiftKey)) {
+      e.preventDefault();
+      const r = (e.target as Element).getBoundingClientRect();
+      onMenu(id, r.left + r.width / 2, r.top + r.height / 2);
+    } else if (e.key === "Enter") {
       e.preventDefault();
       onSelect(id);
     } else if (e.key === " " || e.key === "+" || e.key === "-") {
@@ -341,9 +419,10 @@ export function Graph(props: GraphProps): ReactElement {
         ref={svgRef}
         className="graph-svg"
         role="tree"
-        aria-label="To-do tree. Drag to pan, scroll or pinch to zoom. Enter opens a node, Space expands or collapses it."
+        aria-label="To-do tree. Drag to pan, scroll or pinch to zoom. Enter opens a node, Space expands or collapses it, right-click or the menu key shows more."
         onClick={onClick}
         onDoubleClick={onDoubleClick}
+        onContextMenu={onContextMenu}
         onKeyDown={onKeyDown}
       >
         <g ref={viewportRef}>
@@ -359,7 +438,14 @@ export function Graph(props: GraphProps): ReactElement {
             />
           )}
           {selPath && <path className="edge-selected" d={selPath} />}
-          <Nodes layout={layout} store={store} expanded={expanded} loading={loading} k={lod} />
+          <Nodes
+            layout={layout}
+            store={store}
+            expanded={expanded}
+            loading={loading}
+            k={lod}
+            turn={rot}
+          />
           {sel && (
             <circle
               className="selected-ring"
@@ -571,12 +657,15 @@ interface NodesProps {
   loading: ReadonlySet<number>;
   /** Zoom bucket: decides which labels show and how long they may be. */
   k: number;
+  /** The tree's rotation, degrees: labels are turned to stay readable under it. */
+  turn: number;
 }
 
-const Nodes = memo(function Nodes({ layout, store, expanded, loading, k }: NodesProps) {
+const Nodes = memo(function Nodes({ layout, store, expanded, loading, k, turn }: NodesProps) {
   const today = store.meta?.today ?? "";
-  // Labels keep the same size on screen at every zoom.
-  const font = FONT / k;
+  // Labels keep the same size on screen when zoomed out and grow gently with glyphs past 1x.
+  const grow = onScreenGrowth(k);
+  const font = (FONT * grow) / k;
   return (
     <g className="nodes">
       {layout.nodes.map((p) => {
@@ -589,7 +678,7 @@ const Nodes = memo(function Nodes({ layout, store, expanded, loading, k }: Nodes
         const busy = loading.has(n.id);
         const ms = markers(n, today);
         // A label shows when its wedge is tall enough on screen for one line of text.
-        const showLabel = p.depth === 0 || p.room * k >= FONT + 2;
+        const showLabel = p.depth === 0 || p.room * k >= FONT * grow + 2;
         // An open inner node gets a short level label under it; a leaf or a collapsed node
         // a long one running outward (nothing else is drawn in its wedge beyond it).
         const outward = p.depth > 0 && p.childCount === 0;
@@ -607,13 +696,15 @@ const Nodes = memo(function Nodes({ layout, store, expanded, loading, k }: Nodes
           .filter(Boolean)
           .join(", ");
         const prio = n.effective_priority;
+        const squareTurn = `rotate(${((p.angle * 180) / Math.PI).toFixed(2)})`;
         const ownPrio = n.priority !== null;
         const deg = (p.angle * 180) / Math.PI - 90;
-        const flip = p.angle > Math.PI;
+        const flip = labelFlip(p.angle, turn);
         const rot = flip ? deg + 180 : deg;
         // Zoomed out, glyphs grow back toward their on-screen size, but never wider than
-        // the node's wedge, so a dense ring does not turn into a smear.
-        const z = Math.max(1, Math.min(1 / Math.min(k, 1), 2.5, (0.4 * p.room) / r));
+        // the node's wedge, so a dense ring does not turn into a smear. Zoomed in they grow
+        // in step with the labels.
+        const z = glyphScale(k, p.room, r);
         const offset = (hasKids ? r + 20 : r + 6) * z;
         const cls = [
           "node",
@@ -638,19 +729,33 @@ const Nodes = memo(function Nodes({ layout, store, expanded, loading, k }: Nodes
             aria-expanded={hasKids ? isOpen : undefined}
           >
             <title>{`${spokeId(n.id)}  ${n.title}\n${describe}`}</title>
-            <g transform={z === 1 ? undefined : `scale(${z.toFixed(3)})`}>
+            <g transform={Math.abs(z - 1) < 1e-3 ? undefined : `scale(${z.toFixed(3)})`}>
               {prio !== null && p.depth > 0 && (
                 <circle className={`prio p${prio} ${ownPrio ? "own" : "inherited"}`} r={r + 3.5} />
               )}
               {collapsed && <circle className="collapsed-halo" r={r + (prio ? 7 : 4)} />}
               {busy && <circle className="busy" r={r + 9} />}
               {n.kind === "area" && p.depth > 0 ? (
-                <rect className="shape" x={-r} y={-r} width={r * 2} height={r * 2} rx={3} />
+                <rect
+                  className="shape"
+                  x={-r}
+                  y={-r}
+                  width={r * 2}
+                  height={r * 2}
+                  rx={3}
+                  transform={squareTurn}
+                />
               ) : (
                 <circle className="shape" r={r} />
               )}
               {isAlert(n, today) && (
-                <circle className="alert-dot" cx={r * 0.8} cy={-r * 0.8} r={3.2} />
+                <circle
+                  className="alert-dot"
+                  cx={r * 0.8}
+                  cy={-r * 0.8}
+                  r={3.2}
+                  transform={n.kind === "area" && p.depth > 0 ? squareTurn : undefined}
+                />
               )}
               {hasKids && p.depth > 0 && (
                 <g
@@ -668,6 +773,7 @@ const Nodes = memo(function Nodes({ layout, store, expanded, loading, k }: Nodes
               (!outward ? (
                 <text
                   className="label inner-label"
+                  transform={turn ? `rotate(${(-turn).toFixed(2)})` : undefined}
                   y={r * z + font * (p.depth === 0 ? 1.4 : 1.25)}
                   fontSize={font}
                 >

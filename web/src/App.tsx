@@ -17,9 +17,12 @@ import {
   versionAtLeast,
   type TreeQuery,
 } from "./api";
+import { ContextMenu } from "./ContextMenu";
 import { DetailPanel, type DetailState } from "./DetailPanel";
 import { clock, spokeId } from "./format";
 import { Graph, type Glow } from "./Graph";
+import { backlogUrl } from "./backlog";
+import { kanbanUrl } from "./kanban";
 import { layoutRadial } from "./layout";
 import { Legend } from "./Legend";
 import { buildReplay, changes, describeStep, storeAt, type Replay } from "./replay";
@@ -27,6 +30,7 @@ import { ReplayBar, scopeLabel, type Speed } from "./ReplayBar";
 import {
   ancestors,
   buildStore,
+  closeOthers,
   fullExpansion,
   initialExpansion,
   knownChildren,
@@ -162,6 +166,7 @@ export function App(): ReactElement {
   /** The node search last jumped to: centred once, and glowing for a moment. */
   const [found, setFound] = useState<{ id: number; key: number } | null>(null);
   const [glowing, setGlowing] = useState(false);
+  const [menu, setMenu] = useState<{ id: number; x: number; y: number } | null>(null);
 
   // The latest values, for async work that outlives a render.
   const slicesRef = useRef(slices);
@@ -544,6 +549,9 @@ export function App(): ReactElement {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
+  const closeMenu = useCallback(() => setMenu(null), []);
+  const menuNode = menu ? store.nodes.get(menu.id) : undefined;
+
   const layout = useMemo(
     () =>
       layoutRadial(ROOT_ID, (id) => (expanded.has(id) ? knownChildren(store, id) : []), undefined),
@@ -690,6 +698,7 @@ export function App(): ReactElement {
           fitKey={fitKey}
           onSelect={select}
           onToggle={() => undefined}
+          onMenu={() => undefined}
           highlight={highlight}
           follow
           topInset={REPLAY_BAR_PX}
@@ -713,6 +722,7 @@ export function App(): ReactElement {
         onToggle={(id) => void toggle(id)}
         focusOn={found}
         highlight={glowFound}
+        onMenu={(id, x, y) => setMenu({ id, x, y })}
       />
     );
   } else {
@@ -803,6 +813,11 @@ export function App(): ReactElement {
         >
           {replay?.kind === "loading" ? "Loading history…" : "Replay"}
         </button>
+        {server && (
+          <a className="btn" href={backlogUrl(server, ROOT_ID)}>
+            Backlog
+          </a>
+        )}
         <span className="updated" aria-live="polite">
           {changedAt && `Updated ${clock(changedAt)}`}
           {checkedAt && changedAt && checkedAt.getTime() !== changedAt.getTime()
@@ -873,6 +888,47 @@ export function App(): ReactElement {
           }}
           onSelect={select}
           onToggle={(id) => void toggle(id)}
+          server={server}
+        />
+      )}
+      {menu && menuNode && (
+        <ContextMenu
+          x={menu.x}
+          y={menu.y}
+          heading={`${spokeId(menuNode.id)} ${menuNode.title}`}
+          onClose={closeMenu}
+          items={[
+            ...(menuNode.child_count > 0 && server
+              ? [
+                  { label: "View Backlog", href: backlogUrl(server, menuNode.id) },
+                  { label: "View Kanban", href: kanbanUrl(server, menuNode.id) },
+                ]
+              : []),
+            { label: "Show details", onPick: () => select(menuNode.id) },
+            ...(menuNode.child_count > 0
+              ? [
+                  {
+                    label:
+                      expanded.has(menuNode.id) && knownChildren(store, menuNode.id).length > 0
+                        ? "Collapse branch"
+                        : "Expand branch",
+                    onPick: () => void toggle(menuNode.id),
+                  },
+                ]
+              : []),
+            ...(menuNode.id !== ROOT_ID
+              ? [
+                  {
+                    label: "Close others",
+                    onPick: () => {
+                      setExpanded(closeOthers(store, expanded, menuNode.id));
+                      setExpandNote(null);
+                      setFitKey((k) => k + 1);
+                    },
+                  },
+                ]
+              : []),
+          ]}
         />
       )}
     </div>
