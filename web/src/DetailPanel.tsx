@@ -42,6 +42,7 @@ export function DetailPanel(props: Props): ReactElement {
   const { detail, fromTree, timeZone, today, expanded, onClose, onSelect, onToggle } = props;
   const n: ViewNode | undefined = detail.data?.node ?? fromTree;
   const notes = detail.data?.node.notes ?? null;
+  const source = detail.data?.node.source ?? null;
   const path = detail.data?.path ?? [];
   const tz = detail.data?.time_zone ?? timeZone;
   const day = detail.data?.today ?? today;
@@ -154,6 +155,13 @@ export function DetailPanel(props: Props): ReactElement {
                 </span>
               ))}
             </p>
+          )}
+          {source && (
+            <>
+              <h3>Source</h3>
+              <p className="muted source-hint">The user&apos;s own words, as recorded.</p>
+              <pre className="notes source">{source}</pre>
+            </>
           )}
           <h3>Notes</h3>
           {detail.loading && !detail.data ? (

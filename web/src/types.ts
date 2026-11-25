@@ -35,6 +35,8 @@ export interface ViewNode {
   answered: boolean;
   repeat: string | null;
   has_notes: boolean;
+  /** The user's raw words are stored on the node (Spokes 0.7.0+; absent on older servers). */
+  has_source?: boolean;
   unplanned: boolean;
   is_step: boolean;
   is_next: boolean;
@@ -78,7 +80,7 @@ export interface SpokeEvent {
 
 export interface NodeResponse extends Meta {
   path: Crumb[];
-  node: ViewNode & { notes: string | null };
+  node: ViewNode & { notes: string | null; source?: string | null };
   events: SpokeEvent[];
 }
 
