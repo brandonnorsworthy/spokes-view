@@ -747,6 +747,13 @@ input {
   max-height: 22rem;
   overflow: auto;
 }
+.notes.source {
+  border-left: 3px solid var(--accent, #6aa9ff);
+}
+.source-hint {
+  margin: 0 0 0.35rem;
+  font-size: 0.8rem;
+}
 .events {
   list-style: none;
   padding: 0;
