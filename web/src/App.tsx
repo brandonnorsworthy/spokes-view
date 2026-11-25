@@ -35,9 +35,12 @@ import {
   ROOT_ID,
 } from "./treeStore";
 import { Search } from "./Search";
-import type { SearchHit, ServerEntry, TreeResponse } from "./types";
+import type { SearchHit, ServerEntry, Shown, TreeResponse } from "./types";
 
 /** Levels loaded on a server's first load, and per branch opened later. */
+/** The default: only open, in-progress and waiting tasks are drawn. */
+const NOTHING_CLOSED: Shown = { done: false, dropped: false };
+
 const FIRST_DEPTH = 3;
 const BRANCH_DEPTH = 2;
 const REFRESH_MS = 30_000;
@@ -137,7 +140,7 @@ export function App(): ReactElement {
   const [servers, setServers] = useState<ServerEntry[] | null>(null);
   const [serversError, setServersError] = useState<string | null>(null);
   const [server, setServer] = useState<string | null>(null);
-  const [includeClosed, setIncludeClosed] = useState(false);
+  const [show, setShow] = useState<Shown>(NOTHING_CLOSED);
   const [slices, setSlices] = useState<Slice[]>([]);
   const [tree, setTree] = useState<TreeState>({ kind: "idle" });
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
@@ -167,7 +170,7 @@ export function App(): ReactElement {
     slicesRef.current = slices;
     detailRef.current = detail;
   }, [slices, detail]);
-  /** Bumped on every server or closed-toggle switch; stale responses are dropped. */
+  /** Bumped on every server or dropped-toggle switch; stale responses are dropped. */
   const generation = useRef(0);
   const abort = useRef<AbortController | null>(null);
   const refreshBusy = useRef(false);
@@ -178,8 +181,8 @@ export function App(): ReactElement {
 
   const store = useMemo(() => buildStore(slices.map((s) => s.data)), [slices]);
 
-  // Load (or reload) a server. `keep` keeps expansion and selection (the closed toggle).
-  const load = useCallback(async (name: string, closed: boolean, keep: boolean) => {
+  // Load (or reload) a server. `keep` keeps expansion and selection (the dropped toggle).
+  const load = useCallback(async (name: string, shown: Shown, keep: boolean) => {
     const gen = ++generation.current;
     abort.current?.abort();
     const ctl = new AbortController();
@@ -201,20 +204,20 @@ export function App(): ReactElement {
     try {
       const first = await fetchTree(
         name,
-        { root: ROOT_ID, depth: FIRST_DEPTH, includeClosed: closed },
+        { root: ROOT_ID, depth: FIRST_DEPTH, show: shown },
         null,
         ctl.signal,
       );
       if (gen !== generation.current || !first.data) return;
       const loaded: Slice[] = [
         {
-          q: { root: ROOT_ID, depth: FIRST_DEPTH, includeClosed: closed },
+          q: { root: ROOT_ID, depth: FIRST_DEPTH, show: shown },
           etag: first.etag,
           data: first.data,
         },
       ];
-      // Reload the branches that were open, with the new closed setting.
-      const branches = previous.slice(1).map((s) => ({ ...s.q, includeClosed: closed }));
+      // Reload the branches that were open, with the new dropped setting.
+      const branches = previous.slice(1).map((s) => ({ ...s.q, show: shown }));
       const got = await pool(
         branches.map((q) => async () => {
           try {
@@ -244,13 +247,13 @@ export function App(): ReactElement {
     }
   }, []);
 
-  // Picking a server loads it from scratch (closed nodes hidden again).
+  // Picking a server loads it from scratch (done and dropped nodes hidden again).
   const choose = useCallback(
     (name: string) => {
       rememberServer(name);
       setServer(name);
-      setIncludeClosed(false);
-      void load(name, false, false);
+      setShow(NOTHING_CLOSED);
+      void load(name, NOTHING_CLOSED, false);
     },
     [load],
   );
@@ -271,18 +274,18 @@ export function App(): ReactElement {
       });
   }, [choose]);
 
-  const toggleClosed = () => {
-    const next = !includeClosed;
-    setIncludeClosed(next);
+  const toggleShown = (which: keyof Shown) => {
+    const next = { ...show, [which]: !show[which] };
+    setShow(next);
     if (server) void load(server, next, true);
   };
 
   // Detail: fetched on click, and again on refresh with its tag.
   const loadDetail = useCallback(
-    async (name: string, id: number, closed: boolean, etag: string | null) => {
+    async (name: string, id: number, shown: Shown, etag: string | null) => {
       const gen = generation.current;
       try {
-        const r = await fetchNode(name, id, closed, etag);
+        const r = await fetchNode(name, id, shown, etag);
         if (gen !== generation.current || detailRef.current?.id !== id) return;
         if (r.data) setDetail({ id, data: r.data, etag: r.etag, error: null, loading: false });
       } catch (e) {
@@ -320,9 +323,9 @@ export function App(): ReactElement {
           return n;
         });
       }
-      void loadDetail(server, id, includeClosed, null);
+      void loadDetail(server, id, show, null);
     },
-    [server, store, includeClosed, loadDetail],
+    [server, store, show, loadDetail],
   );
 
   const toggle = useCallback(
@@ -343,7 +346,7 @@ export function App(): ReactElement {
       if (loading.has(id)) return;
       const gen = generation.current;
       setLoading((l) => new Set(l).add(id));
-      const q = { root: id, depth: BRANCH_DEPTH, includeClosed };
+      const q = { root: id, depth: BRANCH_DEPTH, show };
       try {
         const r = await fetchTree(server, q, null);
         if (gen !== generation.current || !r.data) return;
@@ -361,7 +364,7 @@ export function App(): ReactElement {
         });
       }
     },
-    [server, store, expanded, loading, includeClosed],
+    [server, store, expanded, loading, show],
   );
 
   // Jump to a search hit: load the branches down to it, open them, select and centre it.
@@ -381,7 +384,7 @@ export function App(): ReactElement {
           const root = next.id;
           tried.add(root);
           setLoading((l) => new Set(l).add(root));
-          const q = { root, depth: BRANCH_DEPTH, includeClosed };
+          const q = { root, depth: BRANCH_DEPTH, show };
           try {
             const r = await fetchTree(server, q, null);
             if (gen !== generation.current) return;
@@ -404,7 +407,7 @@ export function App(): ReactElement {
         });
         setSelected(hit.id);
         setDetail({ id: hit.id, data: null, etag: null, error: null, loading: true });
-        void loadDetail(server, hit.id, includeClosed, null);
+        void loadDetail(server, hit.id, show, null);
         setFound((f) => ({ id: hit.id, key: (f?.key ?? 0) + 1 }));
         setGlowing(true);
         setRefreshError(null);
@@ -413,7 +416,7 @@ export function App(): ReactElement {
           setRefreshError(`Could not show ${spokeId(hit.id)}: ${errorOf(e).message}`);
       }
     },
-    [server, includeClosed, loadDetail],
+    [server, show, loadDetail],
   );
 
   // The found node glows once; the glow is dropped after it has played.
@@ -440,7 +443,7 @@ export function App(): ReactElement {
         const batch = plan.pending.slice(0, 8);
         const got = await pool(
           batch.map((id) => async () => {
-            const q = { root: id, depth: EXPAND_ALL_DEPTH, includeClosed };
+            const q = { root: id, depth: EXPAND_ALL_DEPTH, show };
             const r = await fetchTree(server, q, null);
             return r.data ? { q, etag: r.etag, data: r.data } : null;
           }),
@@ -466,7 +469,7 @@ export function App(): ReactElement {
     } finally {
       setExpandingAll(false);
     }
-  }, [server, expandingAll, tree.kind, includeClosed]);
+  }, [server, expandingAll, tree.kind, show]);
 
   const collapseAll = () => {
     // Back to the root and its direct children.
@@ -480,7 +483,7 @@ export function App(): ReactElement {
     if (!server || refreshBusy.current || tree.kind === "loading") return;
     const current = slicesRef.current;
     if (current.length === 0) {
-      void load(server, includeClosed, false);
+      void load(server, show, false);
       return;
     }
     refreshBusy.current = true;
@@ -510,7 +513,7 @@ export function App(): ReactElement {
       setCheckedAt(new Date());
       setRefreshError(null);
       const d = detailRef.current;
-      if (d) void loadDetail(server, d.id, includeClosed, d.etag);
+      if (d) void loadDetail(server, d.id, show, d.etag);
     } catch (e) {
       if (gen === generation.current) {
         setRefreshError(`Refresh failed: ${errorOf(e).message}`);
@@ -520,7 +523,7 @@ export function App(): ReactElement {
       refreshBusy.current = false;
       setRefreshing(false);
     }
-  }, [server, tree.kind, includeClosed, load, loadDetail]);
+  }, [server, tree.kind, show, load, loadDetail]);
 
   useEffect(() => {
     const t = window.setInterval(() => {
@@ -602,8 +605,8 @@ export function App(): ReactElement {
   }, [playing, ready, step, total, speed]);
 
   const replayStore = useMemo(
-    () => (ready ? storeAt(ready, step, includeClosed) : null),
-    [ready, step, includeClosed],
+    () => (ready ? storeAt(ready, step, show) : null),
+    [ready, step, show],
   );
   const replayLayout = useMemo(
     () =>
@@ -624,7 +627,7 @@ export function App(): ReactElement {
     const out: Glow[] = [];
     for (let s = Math.max(1, step - window + 1); s <= step; s++)
       for (const c of changes(ready, s)) {
-        // A change to a hidden node (closed, with "Show closed" off) lights up the
+        // A change to a hidden node (done or dropped, with its toggle off) lights up the
         // nearest ancestor that is drawn, so the spot still shows.
         let id: number | null = c.id;
         const seen = new Set<number>();
@@ -662,7 +665,7 @@ export function App(): ReactElement {
       <TreeError
         error={tree.error}
         server={server ?? ""}
-        onRetry={() => server && void load(server, includeClosed, false)}
+        onRetry={() => server && void load(server, show, false)}
       />
     );
   } else if (tree.kind === "loading" && slices.length === 0) {
@@ -670,8 +673,8 @@ export function App(): ReactElement {
   } else if (root && root.child_count === 0) {
     body = (
       <Message title="This tree is empty">
-        {root.closed_child_count > 0 && !includeClosed
-          ? `There are ${root.closed_child_count} closed items; turn on "Show closed" to see them.`
+        {root.closed_child_count > 0 && !(show.done && show.dropped)
+          ? `There are ${root.closed_child_count} done or dropped items; turn on "Show done" or "Show dropped" to see them.`
           : "Nothing has been added to it yet."}
       </Message>
     );
@@ -748,14 +751,18 @@ export function App(): ReactElement {
           // A new server starts with an empty box.
           key={server ?? ""}
           server={server}
-          includeClosed={includeClosed}
+          show={show}
           supported={canSearch(current)}
           disabled={tree.kind !== "ready" || !root || replay !== null}
           onPick={(hit) => void reveal(hit)}
         />
         <label className="check">
-          <input type="checkbox" checked={includeClosed} onChange={toggleClosed} />
-          Show closed
+          <input type="checkbox" checked={show.done} onChange={() => toggleShown("done")} />
+          Show done
+        </label>
+        <label className="check">
+          <input type="checkbox" checked={show.dropped} onChange={() => toggleShown("dropped")} />
+          Show dropped
         </label>
         <button
           type="button"

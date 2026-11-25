@@ -11,7 +11,7 @@
 // priority, dates and order among siblings, which show as they are now.
 
 import type { Store } from "./treeStore";
-import type { HistoryEvent, HistoryResponse, Status, ViewNode } from "./types";
+import type { HistoryEvent, HistoryResponse, Shown, Status, ViewNode } from "./types";
 
 export interface Step {
   /** Index of the step's first event in `history.events`. */
@@ -194,15 +194,19 @@ const CLOSED: ReadonlySet<Status> = new Set(["done", "dropped"]);
 /**
  * A store holding the subtree as it stood after `k` steps, in the same shape the live
  * view draws: every node reachable from the subtree's root, all children loaded.
- * With `includeClosed` false, done and dropped nodes (and what is under them) are left
- * out, as in the live view.
+ * Done nodes are left out (with what is under them) unless `show.done`, and dropped ones
+ * unless `show.dropped`, as in the live view.
  */
-export function storeAt(r: Replay, k: number, includeClosed: boolean): Store {
+export function storeAt(r: Replay, k: number, show: Shown): Store {
   const state = stateAt(r, k);
   const kids = childIndex(state, r.order);
   const visible = (id: number) => {
     const s = state.get(id);
-    return !!s && s.present && (includeClosed || !CLOSED.has(s.status));
+    return (
+      !!s &&
+      s.present &&
+      (s.status === "done" ? show.done : s.status === "dropped" ? show.dropped : true)
+    );
   };
   const store: Store = {
     nodes: new Map(),
@@ -252,6 +256,7 @@ export function storeAt(r: Replay, k: number, includeClosed: boolean): Store {
       child_count: shown.length,
       descendant_count: descendants,
       closed_child_count: all.filter((c) => CLOSED.has(state.get(c)?.status ?? "open")).length,
+      dropped_child_count: all.filter((c) => state.get(c)?.status === "dropped").length,
       children_loaded: true,
     });
     store.children.set(id, shown);

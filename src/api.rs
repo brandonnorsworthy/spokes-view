@@ -3,11 +3,11 @@
 //! answer through (with its ETag, and a 304 when the browser's tag is still current).
 //!
 //! - `GET /api/servers`: the configured names, each probed for status and version.
-//! - `GET /api/servers/{name}/tree?root=&depth=&include_closed=`: a tree slice.
-//! - `GET /api/servers/{name}/nodes/{id}?include_closed=`: one node with notes.
+//! - `GET /api/servers/{name}/tree?root=&depth=&include_closed=&include_dropped=`: a tree slice.
+//! - `GET /api/servers/{name}/nodes/{id}?include_closed=&include_dropped=`: one node with notes.
 //!
 //! - `GET /api/servers/{name}/history?root=`: the replay history of a subtree (Spokes 0.4.0+).
-//! - `GET /api/servers/{name}/search?q=&limit=&include_closed=&scope=`: fuzzy search (Spokes 0.5.0+).
+//! - `GET /api/servers/{name}/search?q=&limit=&include_closed=&include_dropped=&scope=`: fuzzy search (Spokes 0.5.0+).
 //!
 //! Errors are `{"error": "...", "code": "..."}` with `code` one of `bad_request`,
 //! `unknown_server`, `not_found`, `unreachable`, `too_old`, `history_unsupported`,
@@ -231,6 +231,15 @@ pub fn parse_bool(value: Option<&String>, name: &str) -> Result<bool, ApiError> 
     }
 }
 
+/// `include_dropped` is optional: absent, Spokes lets it follow `include_closed` (and a
+/// Spokes older than 0.6.0 does not know it, so it is only forwarded when the page sent it).
+fn parse_include_dropped(value: Option<&String>) -> Result<Option<String>, ApiError> {
+    value
+        .map(|_| parse_bool(value, "include_dropped"))
+        .transpose()
+        .map(|v| v.map(|b| format!("&include_dropped={b}")))
+}
+
 /// The browser's `If-None-Match`, if it looks like entity tags (printable ASCII, short).
 fn if_none_match(headers: &HeaderMap) -> Option<HeaderValue> {
     headers
@@ -339,14 +348,19 @@ async fn tree(
     query: Result<Query<Vec<(String, String)>>, QueryRejection>,
 ) -> Result<Response, ApiError> {
     let server = state.server(&name)?;
-    let p = params(query, &["root", "depth", "include_closed"])?;
+    let p = params(
+        query,
+        &["root", "depth", "include_closed", "include_dropped"],
+    )?;
     let root = match p.get("root") {
         None => 1,
         Some(v) => parse_id(v, "root")?,
     };
     let depth = parse_depth(p.get("depth"))?;
     let include_closed = parse_bool(p.get("include_closed"), "include_closed")?;
-    let path = format!("/api/tree?root={root}&depth={depth}&include_closed={include_closed}");
+    let dropped = parse_include_dropped(p.get("include_dropped"))?.unwrap_or_default();
+    let path =
+        format!("/api/tree?root={root}&depth={depth}&include_closed={include_closed}{dropped}");
     upstream::get(
         &state.client,
         server,
@@ -367,9 +381,10 @@ async fn node(
 ) -> Result<Response, ApiError> {
     let server = state.server(&name)?;
     let id = parse_id(&id, "id")?;
-    let p = params(query, &["include_closed"])?;
+    let p = params(query, &["include_closed", "include_dropped"])?;
     let include_closed = parse_bool(p.get("include_closed"), "include_closed")?;
-    let path = format!("/api/nodes/{id}?include_closed={include_closed}");
+    let dropped = parse_include_dropped(p.get("include_dropped"))?.unwrap_or_default();
+    let path = format!("/api/nodes/{id}?include_closed={include_closed}{dropped}");
     upstream::get(
         &state.client,
         server,
@@ -447,7 +462,10 @@ async fn search(
     query: Result<Query<Vec<(String, String)>>, QueryRejection>,
 ) -> Result<Response, ApiError> {
     let server = state.server(&name)?;
-    let p = params(query, &["q", "limit", "include_closed", "scope"])?;
+    let p = params(
+        query,
+        &["q", "limit", "include_closed", "include_dropped", "scope"],
+    )?;
     let q = p
         .get("q")
         .ok_or_else(|| ApiError::bad("q is required"))?
@@ -475,6 +493,7 @@ async fn search(
         ),
     };
     let include_closed = parse_bool(p.get("include_closed"), "include_closed")?;
+    let dropped = parse_include_dropped(p.get("include_dropped"))?;
     let scope = match p.get("scope") {
         None => None,
         Some(v) => Some(parse_id(v, "scope")?),
@@ -485,6 +504,9 @@ async fn search(
     }
     if include_closed {
         path.push_str("&include_closed=true");
+    }
+    if let Some(dropped) = dropped {
+        path.push_str(&dropped);
     }
     if let Some(scope) = scope {
         path.push_str(&format!("&scope={scope}"));

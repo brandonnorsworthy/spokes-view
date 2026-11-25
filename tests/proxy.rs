@@ -323,6 +323,31 @@ async fn tree_is_passed_through_with_canonical_parameters() {
 }
 
 #[tokio::test]
+async fn include_dropped_is_forwarded_only_when_sent() {
+    let env = start().await;
+    for path in [
+        "/api/servers/New/tree?root=2&depth=1&include_closed=true&include_dropped=FALSE",
+        "/api/servers/New/tree?include_dropped=1",
+        "/api/servers/New/nodes/3?include_closed=1&include_dropped=0",
+    ] {
+        assert_eq!(env.get(path).await.status(), StatusCode::OK, "{path}");
+    }
+    let r = env
+        .get("/api/servers/Hist/search?q=a&include_closed=true&include_dropped=false")
+        .await;
+    assert_eq!(r.status(), StatusCode::OK);
+    assert_eq!(
+        env.seen(),
+        vec![
+            "/api/tree?root=2&depth=1&include_closed=true&include_dropped=false",
+            "/api/tree?root=1&depth=3&include_closed=false&include_dropped=true",
+            "/api/nodes/3?include_closed=true&include_dropped=false",
+            "/api/search?q=a&include_closed=true&include_dropped=false",
+        ]
+    );
+}
+
+#[tokio::test]
 async fn not_modified_is_passed_through() {
     let env = start().await;
     let r = env
@@ -418,6 +443,10 @@ async fn bad_parameters_never_reach_upstream() {
         "/api/servers/New/tree?root=1%26depth%3D10",
         "/api/servers/New/tree?root=1&root=2",
         "/api/servers/New/tree?include_closed=maybe",
+        "/api/servers/New/tree?include_dropped=maybe",
+        "/api/servers/New/tree?include_dropped=true&include_dropped=false",
+        "/api/servers/New/nodes/3?include_dropped=maybe",
+        "/api/servers/Hist/search?q=a&include_dropped=maybe",
         "/api/servers/New/tree?url=http://evil.example",
         "/api/servers/New/nodes/x",
         "/api/servers/New/nodes/0",

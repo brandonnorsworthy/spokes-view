@@ -8,7 +8,7 @@ import {
 } from "react";
 import { ApiError, fetchSearch } from "./api";
 import { STATUS_LABEL, spokeId } from "./format";
-import type { SearchHit, SearchResponse } from "./types";
+import type { SearchHit, SearchResponse, Shown } from "./types";
 
 /** Wait after the last keystroke before asking the server. */
 const DEBOUNCE_MS = 150;
@@ -16,7 +16,7 @@ const LIMIT = 10;
 
 export interface SearchProps {
   server: string | null;
-  includeClosed: boolean;
+  show: Shown;
   /** False when the server is older than Spokes 0.5.0 (or not ok). */
   supported: boolean;
   disabled: boolean;
@@ -39,13 +39,7 @@ function pathText(hit: SearchHit): string {
  * The header search box: fuzzy matches from Spokes' own search as you type, picked with
  * the mouse or the arrow keys and Enter. `/` focuses it from anywhere on the page.
  */
-export function Search({
-  server,
-  includeClosed,
-  supported,
-  disabled,
-  onPick,
-}: SearchProps): ReactElement {
+export function Search({ server, show, supported, disabled, onPick }: SearchProps): ReactElement {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<Results>({ kind: "idle" });
   const [open, setOpen] = useState(false);
@@ -79,7 +73,7 @@ export function Search({
     const ctl = new AbortController();
     const t = window.setTimeout(() => {
       setResults((r) => (r.kind === "ready" ? r : { kind: "loading" }));
-      fetchSearch(server, q, includeClosed, LIMIT, ctl.signal).then(
+      fetchSearch(server, q, show, LIMIT, ctl.signal).then(
         (data) => {
           setResults({ kind: "ready", data });
           setActive(0);
@@ -97,7 +91,7 @@ export function Search({
       window.clearTimeout(t);
       ctl.abort();
     };
-  }, [query, server, includeClosed, searchable]);
+  }, [query, server, show, searchable]);
 
   // Results of an earlier query stay up until the new ones arrive.
   const shown: Results = searchable ? results : { kind: "idle" };
@@ -175,7 +169,7 @@ export function Search({
             <div className="search-note">
               No matches. Try other words or spellings.
               {shown.data.hidden_closed > 0 &&
-                ` ${String(shown.data.hidden_closed)} closed ${shown.data.hidden_closed === 1 ? "match is" : "matches are"} hidden; turn on "Show closed".`}
+                ` ${String(shown.data.hidden_closed)} done or dropped ${shown.data.hidden_closed === 1 ? "match is" : "matches are"} hidden; turn on "Show done" or "Show dropped".`}
             </div>
           )}
           {hits.map((hit, i) => (
