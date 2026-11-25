@@ -10,8 +10,11 @@ The finished product:
 
 - **Pick a server** from a configured list (home, dev, test copies) and see its tree; the choice is remembered and can be linked to.
 - **Radial graph:** the root in the centre, areas and tasks radiating outward, drawn so a tree of tens of thousands of nodes stays usable: only the top levels load at first, branches load when opened, collapsed branches show how much is hidden.
-- **Everything at a glance:** status colours, areas apart from tasks, priority rings, markers for claims, stalled claims, questions waiting on the user, due and overdue dates, the focus list, deferrals, repeats, notes and the actionable next step of an ordered parent.
-- **Details on click:** breadcrumb, every field in readable form (dates in the server's time zone), notes and recent events.
+- **Everything at a glance:** status colours, areas apart from tasks, priority rings, markers for claims, stalled claims, questions waiting on the user, due and overdue dates, the focus list, deferrals, repeats, notes, type and stage badges (types show an icon, stages have their own colours, and the Legend lists both; Spokes 0.4.0+; older servers show none) and the actionable next step of an ordered parent.
+- **Details on click:** breadcrumb, every field in readable form (dates in the server's time zone), type and stage (Spokes 0.4.0+), notes and recent events.
+- **Focus on click:** clicking a node also turns the whole tree so that node's spoke (and its label) lies horizontal, glides it to the centre and zooms in (to at least 1×, at most 2×). Drag, scroll or a zoom button stops it part-way; **Fit to view** turns the tree back north-up. With reduced motion set, it jumps without animating.
+- **Kanban view:** right-click a node (or press the menu key, or use the link in its details) and pick **View Kanban** to see every node beneath it on a board, one column per status (`/?server=<name>&kanban=<id>`). **Group by** switches the columns to stage, plus a No stage column (`&group=stage`). Cards show where they sit below the board's root; clicking one opens its details in a modal.
+- **Backlog view:** **View Backlog** in the same menu (or the **Backlog** link in the header, for the whole tree) lists every node beneath it as an indented outline (`/?server=<name>&backlog=<id>`): collapsible branches, a filter by title or `SPOKE-N` plus Type and Stage dropdowns, all keeping each match's parents, and the same details modal. Kanban and Backlog are plain links: a click stays in the tab, Cmd/middle-click opens a new one, and each page links to the other.
 - **Live enough:** a refresh button and a cheap automatic refresh (ETag/304) that keeps the view, expanded branches and selection.
 - **Replay:** play a branch's (or the whole tree's) history from its first event, watching it grow, move, get claimed and finish, with each change glowing where it happened.
 - **Find anything:** type part of a name (typos, aliases and words from the notes count) and jump to the node, wherever it is in the tree; filter by status, priority, due date and claims; link straight to a node.
@@ -86,7 +89,7 @@ The box in the header (press `/` to jump to it) finds nodes with Spokes' own sea
 ### The graph
 
 - **Layout** (`web/src/layout.ts`, hand-written, no graph library): rings by depth; a crowded ring is pushed out until its nodes fit; each node's wedge of angle is in proportion to what its visible subtree needs, so nodes on one ring are never closer than a fixed spacing. Linear in the visible node count; it runs only when the visible set changes. Edges are straight spokes from the root and "elbows" (out, along the circle between two rings, out) deeper down, so they never cut across the centre.
-- **Big trees:** the first load is the top 3 levels (Spokes caps a slice at 2000 nodes); the page opens levels while it stays under about 150 drawn nodes. Opening a node whose children are not loaded fetches that branch (2 levels). A collapsed node shows `+N` (all nodes hidden beneath it). **Expand all** opens every branch, fetching the ones not loaded yet (10 levels per branch), and stops at 3,000 drawn nodes with a notice; **Collapse all** returns to the root and its children. Children cut by the 2000-node cap show as `(+N not loaded)`. Pan and zoom move only a composited layer while the gesture runs, and the SVG is redrawn once it stops, so a frame costs the same with 20 nodes or 2,500. Labels keep a constant size on screen and show only when their wedge has room for them.
+- **Big trees:** the first load is the top 3 levels (Spokes caps a slice at 2000 nodes); the page opens levels while it stays under about 150 drawn nodes. Opening a node whose children are not loaded fetches that branch (2 levels). A collapsed node shows `+N` (all nodes hidden beneath it). **Expand all** opens every branch, fetching the ones not loaded yet (10 levels per branch), and stops at 3,000 drawn nodes with a notice; **Collapse all** returns to the root and its children. Right-click a node and pick **Close others** to collapse every branch except the path to it and its own open branch. Children cut by the 2000-node cap show as `(+N not loaded)`. Pan and zoom move only a composited layer while the gesture runs, and the SVG is redrawn once it stops, so a frame costs the same with 20 nodes or 2,500. Labels keep a constant size on screen and show only when their wedge has room for them.
 - **Refresh:** every loaded slice is re-requested with its ETag every 30 s (while the tab is visible) and on the Refresh button; unchanged slices cost a 304. Expanded branches, pan/zoom and the selected node are kept. The header shows when the data last changed and when it was last checked.
 
 ## Running locally
@@ -172,10 +175,14 @@ Release process: push to `main`, wait for green, then tag that commit `vX.Y.Z` w
 | `src/assets.rs` | The embedded `web/dist` |
 | `tests/proxy.rs` | Integration tests against stub Spokes servers |
 | `web/src/App.tsx` | State: server picker, slices, expansion, refresh, detail |
-| `web/src/Graph.tsx` | The SVG graph: nodes, edges, labels, pan/zoom/fit, keyboard |
+| `web/src/Graph.tsx` | The SVG graph: nodes, edges, labels, pan/zoom/fit, click-to-focus, keyboard |
+| `web/src/focus.ts` | Click-to-focus maths: target view (turn, centre, zoom), animation path, label flipping under a turn |
 | `web/src/layout.ts` | The radial layout (pure function) |
 | `web/src/treeStore.ts` | Merging loaded slices into one tree (pure) |
 | `web/src/DetailPanel.tsx`, `web/src/Legend.tsx` | Detail panel and legend |
 | `web/src/Search.tsx` | The search box and its result list |
 | `web/src/replay.ts`, `web/src/ReplayBar.tsx` | Replay: rebuilding the tree at each step (pure), and the replay bar |
+| `web/src/TypeStageChips.tsx` | Type and stage chips for Backlog rows, Kanban cards and details |
+| `web/src/TypeIcon.tsx` | Inline SVG icon per type (bug, feature, chore, idea, epic) |
+| `web/src/palette.test.ts` | Checks the stage colours meet 4.5:1 contrast in both themes |
 | `web/src/format.ts`, `web/src/api.ts`, `web/src/types.ts` | Formatting and markers, the API client, API types |

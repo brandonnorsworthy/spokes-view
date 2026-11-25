@@ -1,6 +1,17 @@
 import type { ReactElement, ReactNode } from "react";
-import { dueState, formatDate, formatInstant, markers, spokeId, STATUS_LABEL } from "./format";
+import {
+  dueState,
+  formatDate,
+  formatInstant,
+  markers,
+  spokeId,
+  stageOf,
+  STATUS_LABEL,
+  typeOf,
+} from "./format";
 import type { NodeResponse, ViewNode } from "./types";
+import { StageChip, TypeChip } from "./TypeStageChips";
+import { ViewLinks } from "./ViewLinks";
 
 /** Event details carry UTC instants (e.g. a lease end); show them in the server's zone. */
 export function localizeTimes(text: string, timeZone: string): string {
@@ -17,16 +28,23 @@ export interface DetailState {
   loading: boolean;
 }
 
-interface Props {
+interface DetailsProps {
   detail: DetailState;
   /** The node as the tree knows it, shown until the detail arrives. */
   fromTree: ViewNode | undefined;
   timeZone: string;
   today: string;
-  expanded: boolean;
   onClose: () => void;
   onSelect: (id: number) => void;
+  /** Buttons shown under the title, for the node on show. */
+  actions?: (n: ViewNode) => ReactNode;
+}
+
+interface PanelProps extends Omit<DetailsProps, "actions"> {
+  expanded: boolean;
   onToggle: (id: number) => void;
+  /** The server shown, for the links to a node's backlog and kanban pages. */
+  server: string;
 }
 
 function Row({ label, children }: { label: string; children: ReactNode }): ReactElement {
@@ -38,8 +56,30 @@ function Row({ label, children }: { label: string; children: ReactNode }): React
   );
 }
 
-export function DetailPanel(props: Props): ReactElement {
-  const { detail, fromTree, timeZone, today, expanded, onClose, onSelect, onToggle } = props;
+/** The side panel beside the graph. */
+export function DetailPanel(props: PanelProps): ReactElement {
+  const { expanded, onToggle, server, ...rest } = props;
+  return (
+    <aside className="panel details" aria-label="Node details">
+      <NodeDetails
+        {...rest}
+        actions={(n) => (
+          <ViewLinks server={server} node={n}>
+            {n.child_count > 0 && (
+              <button type="button" className="btn" onClick={() => onToggle(n.id)}>
+                {expanded ? "Collapse branch" : `Expand branch (${n.descendant_count} beneath)`}
+              </button>
+            )}
+          </ViewLinks>
+        )}
+      />
+    </aside>
+  );
+}
+
+/** Path, fields, notes and events of one node: the body of the panel and the modal. */
+export function NodeDetails(props: DetailsProps): ReactElement {
+  const { detail, fromTree, timeZone, today, onClose, onSelect, actions } = props;
   const n: ViewNode | undefined = detail.data?.node ?? fromTree;
   const notes = detail.data?.node.notes ?? null;
   const source = detail.data?.node.source ?? null;
@@ -48,9 +88,11 @@ export function DetailPanel(props: Props): ReactElement {
   const day = detail.data?.today ?? today;
   const at = (iso: string) => formatInstant(iso, tz);
   const due = n ? dueState(n, day) : null;
+  const type = n ? typeOf(n) : null;
+  const stage = n ? stageOf(n) : null;
 
   return (
-    <aside className="panel" aria-label="Node details">
+    <>
       <div className="panel-head">
         <nav className="crumbs" aria-label="Path">
           {path.map((c) => (
@@ -79,13 +121,7 @@ export function DetailPanel(props: Props): ReactElement {
             {n.ordered ? " · ordered steps" : ""} ·{" "}
             <span className={`status-text s-${n.status}`}>{STATUS_LABEL[n.status]}</span>
           </p>
-          {n.child_count > 0 && (
-            <p>
-              <button type="button" className="btn" onClick={() => onToggle(n.id)}>
-                {expanded ? "Collapse branch" : `Expand branch (${n.descendant_count} beneath)`}
-              </button>
-            </p>
-          )}
+          {actions?.(n)}
           {detail.error && <p className="warn">{detail.error}</p>}
           {n.waiting_on !== null && (
             <div className="callout question">
@@ -99,6 +135,16 @@ export function DetailPanel(props: Props): ReactElement {
             </div>
           )}
           <dl className="fields">
+            {type !== null && (
+              <Row label="Type">
+                <TypeChip type={type} />
+              </Row>
+            )}
+            {stage !== null && (
+              <Row label="Stage">
+                <StageChip stage={stage} />
+              </Row>
+            )}
             {n.effective_priority !== null && (
               <Row label="Priority">
                 {n.priority !== null
@@ -188,6 +234,6 @@ export function DetailPanel(props: Props): ReactElement {
           <p className="muted small">Times in {tz}.</p>
         </>
       )}
-    </aside>
+    </>
   );
 }
