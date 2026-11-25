@@ -883,6 +883,8 @@ a.btn {
 
 /* ---- kanban board ---- */
 .kanban-app {
+  /* Without this a long one-line title would widen the whole page. */
+  grid-template-columns: minmax(0, 1fr);
   grid-template-rows: auto auto 1fr;
 }
 .bar .home {
@@ -892,12 +894,32 @@ a.btn {
 .bar .home:hover {
   text-decoration: underline;
 }
+/* The title gets its own row, on one line, so the controls below never move with its length. */
+.kanban-app .bar h1 {
+  flex: 0 0 100%;
+  min-width: 0;
+  white-space: nowrap;
+}
 .board-title {
+  display: flex;
+  gap: 0.35em;
   font-weight: 400;
   color: var(--muted);
   min-width: 0;
 }
+.board-path,
 .board-title strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* A long path gives way before the node's own title does. */
+.board-path {
+  flex: 0 1000 auto;
+  min-width: 3em;
+}
+.board-title strong {
+  flex: 0 1 auto;
+  min-width: 0;
   color: var(--text);
   font-weight: 650;
 }

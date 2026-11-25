@@ -105,8 +105,9 @@ export function KanbanApp({ server, rootId }: Props): ReactElement {
           </a>
           <span className="muted">/</span>
           <span className="board-title">
-            {data?.path.map((c) => c.title).join(" / ")}
-            {data && data.path.length > 0 ? " / " : ""}
+            {data && data.path.length > 0 && (
+              <span className="board-path">{data.path.map((c) => c.title).join(" / ")} /</span>
+            )}
             <strong>{rootNode?.title ?? spokeId(rootId)}</strong>
           </span>
         </h1>

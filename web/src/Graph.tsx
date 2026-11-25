@@ -154,10 +154,13 @@ export function Graph(props: GraphProps): ReactElement {
 
   /** The user panned or zoomed since the last fit: following stops until the next fit. */
   const userMoved = useRef(false);
+  /** The node last focused, and where the layout had it; kept centred until the view is moved. */
+  const pinned = useRef<{ id: number; x: number; y: number } | null>(null);
 
   const zoomAt = useCallback(
     (factor: number, cx: number, cy: number) => {
       userMoved.current = true;
+      pinned.current = null;
       stopFocus();
       const v = view.current;
       const k = Math.min(MAX_K, Math.max(MIN_K, v.k * factor));
@@ -190,6 +193,7 @@ export function Graph(props: GraphProps): ReactElement {
     // Fitting also turns the tree back north-up.
     view.current = { k, r: 0, x: w / 2 - cx * k, y: top + h / 2 - cy * k };
     userMoved.current = false;
+    pinned.current = null;
     apply(true);
   }, [layout, apply, topInset, stopFocus]);
 
@@ -202,6 +206,7 @@ export function Graph(props: GraphProps): ReactElement {
       if (!p || !svg) return;
       cancelAnimationFrame(focusFrame.current);
       userMoved.current = true;
+      pinned.current = { id, x: p.x, y: p.y };
       const from = view.current;
       // The target is worked out each frame from the graph's current size: selecting the
       // node opens the detail panel, which narrows the graph after this click.
@@ -246,6 +251,15 @@ export function Graph(props: GraphProps): ReactElement {
     focused.current = focusOn.key;
     focusNode(focusOn.id);
   }, [focusOn, layout, focusNode]);
+
+  // Expanding or collapsing moves nodes: bring the focused one back to the centre.
+  useLayoutEffect(() => {
+    const pin = pinned.current;
+    if (!pin) return;
+    const p = layout.byId.get(pin.id);
+    if (!p) pinned.current = null;
+    else if (p.x !== pin.x || p.y !== pin.y) focusNode(pin.id);
+  }, [layout, focusNode]);
 
   // Following a growing tree: refit once it is a good deal larger than at the last fit.
   const fittedSize = useRef({ key: -1, size: 0 });
@@ -301,6 +315,7 @@ export function Graph(props: GraphProps): ReactElement {
       if (start && Math.hypot(p.x - start.x, p.y - start.y) > 4 && !dragged.current) {
         dragged.current = true;
         userMoved.current = true;
+        pinned.current = null;
         stopFocus();
         try {
           svg.setPointerCapture(e.pointerId);
