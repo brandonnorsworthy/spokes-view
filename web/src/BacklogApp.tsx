@@ -24,6 +24,7 @@ import {
   REFINEMENTS,
   STATUS_LABEL,
   TYPE_LABEL,
+  isEpic,
 } from "./format";
 import { kanbanUrl } from "./kanban";
 import { NodeModal } from "./NodeModal";
@@ -258,7 +259,7 @@ function BacklogRow({
   const due = dueText(n, today);
   return (
     <div
-      className={`row ${n.deferred ? "deferred" : ""}`}
+      className={`row ${n.deferred ? "deferred" : ""} ${isEpic(n) ? "epic" : ""}`}
       data-status={n.status}
       style={{ paddingLeft: `${row.depth * 1.25 + 0.4}rem` }}
     >

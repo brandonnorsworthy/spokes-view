@@ -436,45 +436,55 @@ export function App(): ReactElement {
   );
 
   // Open every branch, fetching the ones not loaded yet, up to EXPAND_ALL_LIMIT drawn nodes.
-  const expandAll = useCallback(async () => {
-    if (!server || expandingAll || tree.kind !== "ready") return;
-    const gen = generation.current;
-    setExpandingAll(true);
-    setExpandNote(null);
-    let work = slicesRef.current;
-    try {
-      let plan = fullExpansion(buildStore(work.map((s) => s.data)), EXPAND_ALL_LIMIT);
-      while (plan.pending.length > 0) {
-        const batch = plan.pending.slice(0, 8);
-        const got = await pool(
-          batch.map((id) => async () => {
-            const q = { root: id, depth: EXPAND_ALL_DEPTH, show };
-            const r = await fetchTree(server, q, null);
-            return r.data ? { q, etag: r.etag, data: r.data } : null;
-          }),
-          4,
-        );
-        if (gen !== generation.current) return;
-        const fetched = got.filter((s): s is Slice => s !== null);
-        // A branch that returned nothing would be asked for again forever.
-        if (fetched.length < batch.length) throw new Error("a branch did not load");
-        work = [...work.filter((s) => !batch.includes(s.q.root)), ...fetched];
-        plan = fullExpansion(buildStore(work.map((s) => s.data)), EXPAND_ALL_LIMIT);
+  /** Opens everything beneath `from`: the whole tree, or one node's branch. */
+  const expandAll = useCallback(
+    async (from: number = ROOT_ID) => {
+      if (!server || expandingAll || tree.kind !== "ready") return;
+      const gen = generation.current;
+      setExpandingAll(true);
+      setExpandNote(null);
+      let work = slicesRef.current;
+      try {
+        let plan = fullExpansion(buildStore(work.map((s) => s.data)), EXPAND_ALL_LIMIT, from);
+        while (plan.pending.length > 0) {
+          const batch = plan.pending.slice(0, 8);
+          const got = await pool(
+            batch.map((id) => async () => {
+              const q = { root: id, depth: EXPAND_ALL_DEPTH, show };
+              const r = await fetchTree(server, q, null);
+              return r.data ? { q, etag: r.etag, data: r.data } : null;
+            }),
+            4,
+          );
+          if (gen !== generation.current) return;
+          const fetched = got.filter((s): s is Slice => s !== null);
+          // A branch that returned nothing would be asked for again forever.
+          if (fetched.length < batch.length) throw new Error("a branch did not load");
+          work = [...work.filter((s) => !batch.includes(s.q.root)), ...fetched];
+          plan = fullExpansion(buildStore(work.map((s) => s.data)), EXPAND_ALL_LIMIT, from);
+        }
+        setSlices(work);
+        if (from === ROOT_ID) {
+          setExpanded(plan.expanded);
+          setFitKey((k) => k + 1);
+        } else {
+          // One branch: open the way to it and leave the rest and the view as they are.
+          const path = ancestors(buildStore(work.map((s) => s.data)), from);
+          setExpanded((ex) => new Set([...ex, ...path, ...plan.expanded]));
+        }
+        if (plan.limited)
+          setExpandNote(
+            `Large tree: opened the first ${String(EXPAND_ALL_LIMIT)} nodes. Open deeper branches one at a time.`,
+          );
+      } catch (e) {
+        if (gen === generation.current)
+          setRefreshError(`Could not expand everything: ${errorOf(e).message}`);
+      } finally {
+        setExpandingAll(false);
       }
-      setSlices(work);
-      setExpanded(plan.expanded);
-      setFitKey((k) => k + 1);
-      if (plan.limited)
-        setExpandNote(
-          `Large tree: opened the first ${String(EXPAND_ALL_LIMIT)} nodes. Open deeper branches one at a time.`,
-        );
-    } catch (e) {
-      if (gen === generation.current)
-        setRefreshError(`Could not expand everything: ${errorOf(e).message}`);
-    } finally {
-      setExpandingAll(false);
-    }
-  }, [server, expandingAll, tree.kind, show]);
+    },
+    [server, expandingAll, tree.kind, show],
+  );
 
   const collapseAll = () => {
     // Back to the root and its direct children.
@@ -914,6 +924,7 @@ export function App(): ReactElement {
                         : "Expand branch",
                     onPick: () => void toggle(menuNode.id),
                   },
+                  { label: "Expand all below", onPick: () => void expandAll(menuNode.id) },
                 ]
               : []),
             ...(menuNode.id !== ROOT_ID

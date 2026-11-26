@@ -394,6 +394,17 @@ input {
   stroke: color-mix(in srgb, var(--text) 55%, transparent);
   stroke-width: 1.5;
 }
+/* Epics: a hexagon outlined in the epic colour, filled by status like any task. Listed
+   before the selection and "next" outlines so those still show. */
+.node.epic .shape,
+.legend-shape.epic {
+  stroke: var(--t-epic);
+  stroke-width: 3;
+  stroke-linejoin: round;
+}
+.node.epic:focus-visible .shape {
+  stroke: var(--focus);
+}
 .node.root .shape {
   fill: var(--bg-3);
   stroke: var(--accent);
@@ -1521,6 +1532,59 @@ a.btn {
     padding: 0.45rem 0.55rem;
   }
   .replay-when {
+    display: none;
+  }
+}
+
+/* Epics stand out on the boards too. */
+.card.epic {
+  border-color: var(--t-epic);
+  border-width: 2px;
+  border-left-width: 6px;
+  border-left-color: var(--card-accent);
+  background: color-mix(in srgb, var(--t-epic) 12%, var(--bg-3));
+}
+.backlog .row.epic {
+  background: color-mix(in srgb, var(--t-epic) 12%, var(--bg-3));
+}
+.card.epic .card-title,
+.backlog .row.epic .row-title {
+  font-weight: 700;
+}
+
+/* The tree's header stays on one row on a desktop window: the search box gives up width
+   first, then the "updated" text takes two lines. Below 1400px the controls tighten and
+   that text is left out. Windows under 1200px wrap as before. */
+@media (min-width: 1200px) {
+  .app:not(.kanban-app) > .bar {
+    column-gap: 0.65rem;
+  }
+  .app:not(.kanban-app) > .bar .search {
+    flex: 1 1 7rem;
+    min-width: 7rem;
+    max-width: 16rem;
+  }
+  .app:not(.kanban-app) > .bar .search-input {
+    width: 100%;
+  }
+  .app:not(.kanban-app) > .bar .updated {
+    flex: 0 1 auto;
+    max-width: 11rem;
+    min-width: 0;
+    font-size: 0.75rem;
+    line-height: 1.25;
+    text-align: right;
+  }
+}
+@media (min-width: 1200px) and (max-width: 1399px) {
+  .app:not(.kanban-app) > .bar {
+    column-gap: 0.45rem;
+    padding-inline: 0.7rem;
+  }
+  .app:not(.kanban-app) > .bar .btn {
+    padding-inline: 0.55rem;
+  }
+  .app:not(.kanban-app) > .bar .updated {
     display: none;
   }
 }

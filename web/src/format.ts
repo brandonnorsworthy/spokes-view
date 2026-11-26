@@ -200,3 +200,8 @@ export function clip(text: string, max: number): string {
   if (max <= 1) return "…";
   return text.length <= max ? text : text.slice(0, Math.max(1, max - 1)).trimEnd() + "…";
 }
+
+/** A task labelled as an epic, which the views draw so it stands out. Areas never are. */
+export function isEpic(n: ViewNode): boolean {
+  return n.kind === "task" && typeOf(n) === "epic";
+}
