@@ -163,7 +163,7 @@ export function initialExpansion(store: Store, budget = 150): Set<number> {
   return expanded;
 }
 
-/** What "Expand all" can open with what is loaded so far. */
+/** What "Expand all" or "Expand all below" can open with what is loaded so far. */
 export interface FullExpansion {
   /** Every node to open, walking down from the root while the drawn total fits `budget`. */
   expanded: Set<number>;
@@ -174,16 +174,17 @@ export interface FullExpansion {
 }
 
 /**
- * Opens the whole known tree breadth-first, shallow levels first, stopping at `budget`
- * drawn nodes so a very large tree cannot freeze the page.
+ * Opens everything known at and beneath `from` (the whole tree by default) breadth-first,
+ * shallow levels first, stopping at `budget` drawn nodes so a very large tree cannot
+ * freeze the page.
  */
-export function fullExpansion(store: Store, budget: number): FullExpansion {
+export function fullExpansion(store: Store, budget: number, from = ROOT_ID): FullExpansion {
   const expanded = new Set<number>();
   const pending: number[] = [];
   let limited = false;
-  if (!store.nodes.has(ROOT_ID)) return { expanded, pending, limited };
+  if (!store.nodes.has(from)) return { expanded, pending, limited };
   let visible = 1;
-  const queue = [ROOT_ID];
+  const queue = [from];
   for (let i = 0; i < queue.length; i++) {
     const id = queue[i];
     if (id === undefined) continue;

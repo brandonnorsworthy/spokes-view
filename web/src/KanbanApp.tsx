@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type ReactElement, type ReactNode } from "react";
 import { backlogUrl } from "./backlog";
-import { clock, markers, spokeId } from "./format";
+import { clock, markers, spokeId, isEpic } from "./format";
 import { buildBoard, GROUP_PARAM, groupingFrom, type Card, type Grouping } from "./kanban";
 import { NodeModal } from "./NodeModal";
 import { TypeRefinementChips } from "./TypeRefinementChips";
@@ -185,7 +185,7 @@ function KanbanCard({
   return (
     <button
       type="button"
-      className={`card ${n.deferred ? "deferred" : ""}`}
+      className={`card ${n.deferred ? "deferred" : ""} ${isEpic(n) ? "epic" : ""}`}
       data-status={n.status}
       onClick={() => onOpen(n.id)}
     >

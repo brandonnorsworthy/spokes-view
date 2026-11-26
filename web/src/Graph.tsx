@@ -1,7 +1,7 @@
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { KeyboardEvent, MouseEvent, ReactElement } from "react";
 import type { Layout, NodePos } from "./layout";
-import { clip, isAlert, markers, spokeId, STATUS_LABEL } from "./format";
+import { clip, isAlert, markers, spokeId, STATUS_LABEL, isEpic } from "./format";
 import { easeInOut, focusTarget, interpolateView, labelFlip } from "./focus";
 import type { View } from "./focus";
 import type { Store } from "./treeStore";
@@ -676,6 +676,16 @@ interface NodesProps {
   turn: number;
 }
 
+/** An epic's glyph is a hexagon, clearly larger than a task's circle. */
+const EPIC_SCALE = 1.7;
+function hexagon(r: number): string {
+  const points = [0, 1, 2, 3, 4, 5].map((i) => {
+    const a = (i * Math.PI) / 3;
+    return `${(r * Math.cos(a)).toFixed(2)} ${(r * Math.sin(a)).toFixed(2)}`;
+  });
+  return `M${points.join("L")}Z`;
+}
+
 const Nodes = memo(function Nodes({ layout, store, expanded, loading, k, turn }: NodesProps) {
   const today = store.meta?.today ?? "";
   // Labels keep the same size on screen when zoomed out and grow gently with glyphs past 1x.
@@ -686,7 +696,9 @@ const Nodes = memo(function Nodes({ layout, store, expanded, loading, k, turn }:
       {layout.nodes.map((p) => {
         const n = store.nodes.get(p.id);
         if (!n) return null;
-        const r = nodeRadius(n, p);
+        // An epic is drawn larger, and its rings, toggle and label make room for it.
+        const epic = isEpic(n) && p.depth > 0;
+        const r = nodeRadius(n, p) * (epic ? EPIC_SCALE : 1);
         const hasKids = n.child_count > 0;
         const isOpen = expanded.has(n.id) && p.childCount > 0;
         const collapsed = hasKids && !isOpen;
@@ -702,7 +714,7 @@ const Nodes = memo(function Nodes({ layout, store, expanded, loading, k, turn }:
         const hidden = collapsed ? n.descendant_count : 0;
         const label = clip(n.title, maxChars);
         const describe = [
-          n.kind,
+          isEpic(n) ? "epic" : n.kind,
           STATUS_LABEL[n.status],
           n.effective_priority ? `priority ${n.effective_priority}` : "",
           ...ms.map((m) => m.title),
@@ -725,6 +737,7 @@ const Nodes = memo(function Nodes({ layout, store, expanded, loading, k, turn }:
           "node",
           `s-${n.status}`,
           `k-${n.kind}`,
+          isEpic(n) ? "epic" : "",
           p.depth === 0 ? "root" : "",
           n.deferred ? "deferred" : "",
           collapsed ? "collapsed" : "",
@@ -750,7 +763,9 @@ const Nodes = memo(function Nodes({ layout, store, expanded, loading, k, turn }:
               )}
               {collapsed && <circle className="collapsed-halo" r={r + (prio ? 7 : 4)} />}
               {busy && <circle className="busy" r={r + 9} />}
-              {n.kind === "area" && p.depth > 0 ? (
+              {epic ? (
+                <path className="shape" d={hexagon(r)} transform={squareTurn} />
+              ) : n.kind === "area" && p.depth > 0 ? (
                 <rect
                   className="shape"
                   x={-r}

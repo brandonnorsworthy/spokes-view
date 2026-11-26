@@ -73,6 +73,12 @@ export function Legend(): ReactElement {
             </li>
             <li>
               <svg width="16" height="16" aria-hidden="true">
+                <path className="legend-shape s-open epic" d="M15 8 11.5 14h-7L1 8l3.5-6h7Z" />
+              </svg>
+              epic (a large goal)
+            </li>
+            <li>
+              <svg width="16" height="16" aria-hidden="true">
                 <circle className="legend-shape s-open" cx="8" cy="8" r="4" />
                 <circle className="legend-halo" cx="8" cy="8" r="7" />
               </svg>

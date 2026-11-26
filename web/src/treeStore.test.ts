@@ -263,3 +263,29 @@ describe("closeOthers", () => {
     expect([...input]).toEqual([2]);
   });
 });
+
+describe("fullExpansion beneath one node", () => {
+  const store = buildStore([
+    slice(1, [
+      node(1, null, { child_count: 2 }),
+      node(2, 1, { child_count: 1 }),
+      node(3, 1, { child_count: 1 }),
+      node(4, 2, { child_count: 1 }),
+      node(5, 4),
+      node(6, 3),
+    ]),
+  ]);
+
+  it("opens every level under it and nothing else", () => {
+    const plan = fullExpansion(store, 100, 2);
+    expect([...plan.expanded].sort()).toEqual([2, 4]);
+    expect(plan.pending).toEqual([]);
+    expect(plan.limited).toBe(false);
+  });
+
+  it("stops at the budget", () => {
+    const plan = fullExpansion(store, 2, 2);
+    expect([...plan.expanded]).toEqual([2]);
+    expect(plan.limited).toBe(true);
+  });
+});
