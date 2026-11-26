@@ -1,4 +1,4 @@
-import { REFINEMENT_LABEL, REFINEMENTS, refinementOf, STATUS_LABEL } from "./format";
+import { isClosed, REFINEMENT_LABEL, REFINEMENTS, refinementOf, STATUS_LABEL } from "./format";
 import type { Crumb, Shown, Status, TreeResponse, ViewNode } from "./types";
 
 /** URL parameter that turns the page into a kanban board of one node's descendants. */
@@ -115,6 +115,8 @@ export function buildBoard(slice: TreeResponse, show: Shown, group: Grouping = "
     group === "refinement" ? (refinementOf(n) ?? "none") : n.status;
   for (const n of slice.nodes) {
     if (n.id === slice.root || n.kind === "area") continue;
+    // Closed work has no refinement, so that board leaves it out.
+    if (group === "refinement" && isClosed(n)) continue;
     const path = pathOf(n);
     if (path) byKey.get(keyOf(n))?.cards.push({ node: n, path });
   }

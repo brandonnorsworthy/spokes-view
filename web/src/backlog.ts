@@ -1,4 +1,4 @@
-import { refinementOf, typeOf } from "./format";
+import { isClosed, refinementOf, typeOf } from "./format";
 import { compareNodes } from "./kanban";
 import type { NodeType, Refinement, TreeResponse, ViewNode } from "./types";
 
@@ -84,6 +84,8 @@ function matchesValue<T extends string>(want: T | "any" | "none", have: T | null
  */
 export function matches(n: ViewNode, filter: RowFilter): boolean {
   if (!matchesValue(filter.type, typeOf(n))) return false;
+  // A closed node has no refinement, so any refinement filter (even "none") leaves it out.
+  if (filter.refinement !== "any" && isClosed(n)) return false;
   if (!matchesValue(filter.refinement, refinementOf(n))) return false;
   const f = filter.text.trim().toLowerCase();
   if (f === "") return true;
