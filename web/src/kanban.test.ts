@@ -116,6 +116,20 @@ describe("buildBoard", () => {
     expect(child?.path).toEqual([]);
   });
 
+  it("makes no card for an area but keeps it in the paths beneath it", () => {
+    const withAreas = slice(1, [
+      node(1, null, { kind: "area" }),
+      node(2, 1, { kind: "area", title: "Home" }),
+      node(3, 2),
+      node(4, 1, { kind: "area" }),
+    ]);
+    for (const group of ["status", "refinement"] as const) {
+      const cards = buildBoard(withAreas, NONE, group).flatMap((c) => c.cards);
+      expect(cards.map((c) => c.node.id)).toEqual([3]);
+      expect(cards[0]?.path.map((p) => p.title)).toEqual(["Home"]);
+    }
+  });
+
   it("leaves out the closed columns unless asked", () => {
     expect(buildBoard(tree, NONE).map((c) => c.key)).toEqual(["open", "in_progress", "waiting"]);
   });
