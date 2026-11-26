@@ -12,7 +12,7 @@ interface Props {
   rootId: number;
 }
 
-/** A kanban board of every node beneath `rootId`, one column per status or refinement. */
+/** A kanban board of every task beneath `rootId`, one column per status or refinement. */
 export function KanbanApp({ server, rootId }: Props): ReactElement {
   const {
     show,
@@ -61,10 +61,10 @@ export function KanbanApp({ server, rootId }: Props): ReactElement {
     body = <Message title="Loading…" />;
   } else if (total === 0) {
     body = (
-      <Message title="Nothing beneath this node">
+      <Message title="No tasks beneath this node">
         {!show.done && !show.dropped && rootNode && rootNode.closed_child_count > 0
-          ? 'Its children are all closed; turn on "Show done" or "Show dropped" to see them.'
-          : "It has no children yet."}
+          ? 'Its closed children are hidden; turn on "Show done" or "Show dropped" to see them.'
+          : "There is nothing to put on the board yet."}
       </Message>
     );
   } else {
@@ -195,7 +195,6 @@ function KanbanCard({
       <span className="card-title">{n.title}</span>
       <span className="card-meta">
         <span className="mono">{spokeId(n.id)}</span>
-        {n.kind === "area" && <span className="chip">area</span>}
         <TypeRefinementChips node={n} />
         {prio !== null && (
           <span className={`chip prio-chip p${prio}`} title={`Priority ${prio}`}>

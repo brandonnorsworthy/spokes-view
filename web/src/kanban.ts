@@ -78,8 +78,9 @@ export function compareNodes(x: ViewNode, y: ViewNode): number {
 }
 
 /**
- * Every node beneath the slice's root, in one column per status, each with its path
- * below the root so a flattened card still says where it lives.
+ * Every task beneath the slice's root, in one column per status or refinement, each with
+ * its path below the root so a flattened card still says where it lives. Areas are never
+ * cards, since they never finish; they only appear in the paths of the tasks under them.
  */
 export function buildBoard(slice: TreeResponse, show: Shown, group: Grouping = "status"): Column[] {
   const byId = new Map(slice.nodes.map((n) => [n.id, n]));
@@ -113,7 +114,7 @@ export function buildBoard(slice: TreeResponse, show: Shown, group: Grouping = "
   const keyOf = (n: ViewNode): string =>
     group === "refinement" ? (refinementOf(n) ?? "none") : n.status;
   for (const n of slice.nodes) {
-    if (n.id === slice.root) continue;
+    if (n.id === slice.root || n.kind === "area") continue;
     const path = pathOf(n);
     if (path) byKey.get(keyOf(n))?.cards.push({ node: n, path });
   }
