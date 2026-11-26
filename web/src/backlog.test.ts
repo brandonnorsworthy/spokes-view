@@ -169,6 +169,13 @@ describe("visibleRows", () => {
       expect(ids({ ...NO_FILTER, refinement: "none" })).toEqual([2, 4, 5]);
     });
 
+    it("never matches a closed node by refinement, not even as none", () => {
+      const closed = node(9, 1, { type: "bug", refinement: "ready", status: "done" });
+      expect(matches(closed, { ...NO_FILTER, refinement: "ready" })).toBe(false);
+      expect(matches(closed, { ...NO_FILTER, refinement: "none" })).toBe(false);
+      expect(matches(closed, { ...NO_FILTER, type: "bug" })).toBe(true);
+    });
+
     it("combines text with type", () => {
       expect(ids({ text: "feat", type: "feature", refinement: "any" })).toEqual([2, 3]);
       expect(ids({ text: "bug", type: "feature", refinement: "any" })).toEqual([]);

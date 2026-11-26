@@ -40,8 +40,17 @@ export function typeOf(n: ViewNode): NodeType | null {
   return NODE_TYPES.find((t) => t === n.type) ?? null;
 }
 
-/** The node's refinement; `null` when missing, unset or unknown. */
+/** Done or dropped. */
+export function isClosed(n: ViewNode): boolean {
+  return n.status === "done" || n.status === "dropped";
+}
+
+/**
+ * How ready the node is to start. A closed node has none, even from a server older than
+ * Spokes 0.10.2, which still sends the stored value.
+ */
 export function refinementOf(n: ViewNode): Refinement | null {
+  if (isClosed(n)) return null;
   return REFINEMENTS.find((s) => s === n.refinement) ?? null;
 }
 

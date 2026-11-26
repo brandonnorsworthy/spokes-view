@@ -190,7 +190,14 @@ describe("buildBoard by refinement", () => {
     const ids = (k: string) => cols.find((c) => c.key === k)?.cards.map((c) => c.node.id) ?? [];
     expect(ids("idea")).toEqual([2]);
     expect(ids("planned")).toEqual([3]);
-    expect(ids("ready")).toEqual([4]);
+    expect(ids("ready")).toEqual([]);
     expect(ids("none")).toEqual([5, 6]);
+  });
+
+  it("leaves closed nodes out, even when they are shown and carry a stored value", () => {
+    const cards = buildBoard(tree, { done: true, dropped: true }, "refinement").flatMap((c) =>
+      c.cards.map((card) => card.node.id),
+    );
+    expect(cards).toEqual([2, 3, 5, 6]);
   });
 });
