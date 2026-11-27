@@ -17,12 +17,11 @@ import {
   versionAtLeast,
   type TreeQuery,
 } from "./api";
-import { ContextMenu } from "./ContextMenu";
+import { AppBar } from "./AppBar";
 import { DetailPanel, type DetailState } from "./DetailPanel";
 import { clock, spokeId } from "./format";
-import { Graph, type Glow } from "./Graph";
-import { backlogUrl } from "./backlog";
-import { kanbanUrl } from "./kanban";
+import { Graph, type Glow, type MenuVia } from "./Graph";
+import { linkActions, NodeActions } from "./NodeActions";
 import { layoutRadial } from "./layout";
 import { Legend } from "./Legend";
 import { buildReplay, changes, describeStep, storeAt, type Replay } from "./replay";
@@ -167,7 +166,11 @@ export function App(): ReactElement {
   /** The node search last jumped to: centred once, and glowing for a moment. */
   const [found, setFound] = useState<{ id: number; key: number } | null>(null);
   const [glowing, setGlowing] = useState(false);
-  const [menu, setMenu] = useState<{ id: number; x: number; y: number } | null>(null);
+  const [menu, setMenu] = useState<{ id: number; x: number; y: number; via: MenuVia } | null>(null);
+  // The phone's search: the Search tab opens it over the tree (`search=1` opens it on load).
+  const [searching, setSearching] = useState(
+    () => new URLSearchParams(window.location.search).get("search") === "1",
+  );
 
   // The latest values, for async work that outlives a render.
   const slicesRef = useRef(slices);
@@ -756,7 +759,7 @@ export function App(): ReactElement {
         onToggle={(id) => void toggle(id)}
         focusOn={found}
         highlight={glowFound}
-        onMenu={(id, x, y) => setMenu({ id, x, y })}
+        onMenu={(id, x, y, via) => setMenu({ id, x, y, via })}
       />
     );
   } else {
@@ -765,100 +768,119 @@ export function App(): ReactElement {
 
   return (
     <div className={`app ${detail ? "with-panel" : ""}`}>
-      <header className="bar">
-        <h1>
-          <span className="logo" aria-hidden="true" />
-          Spokes view
-        </h1>
-        <label className="picker">
-          <span className="sr-only">Server</span>
-          <select
-            value={server ?? ""}
-            onChange={(e) => {
-              choose(e.target.value);
-            }}
-            disabled={!servers || servers.length === 0}
-          >
-            {(servers ?? []).map((s) => (
-              <option key={s.name} value={s.name}>
-                {s.name}
-                {s.status === "ok"
-                  ? s.version
-                    ? ` (${s.version})`
-                    : ""
-                  : ` (${s.status.replace("_", " ")})`}
-              </option>
-            ))}
-          </select>
-        </label>
-        <Search
-          // A new server starts with an empty box.
-          key={server ?? ""}
-          server={server}
-          show={show}
-          supported={canSearch(current)}
-          disabled={tree.kind !== "ready" || !root || replay !== null}
-          onPick={(hit) => void pickHit(hit)}
-        />
-        <label className="check">
-          <input type="checkbox" checked={show.done} onChange={() => toggleShown("done")} />
-          Show done
-        </label>
-        <label className="check">
-          <input type="checkbox" checked={show.dropped} onChange={() => toggleShown("dropped")} />
-          Show dropped
-        </label>
-        <button
-          type="button"
-          className="btn"
-          onClick={() => void refresh()}
-          disabled={refreshing || tree.kind === "loading" || replay !== null}
-        >
-          {refreshing ? "Refreshing…" : "Refresh"}
-        </button>
-        <button
-          type="button"
-          className="btn"
-          onClick={() => void expandAll()}
-          disabled={expandingAll || tree.kind !== "ready" || !root || replay !== null}
-        >
-          {expandingAll ? "Expanding…" : "Expand all"}
-        </button>
-        <button
-          type="button"
-          className="btn"
-          onClick={collapseAll}
-          disabled={expandingAll || tree.kind !== "ready" || expanded.size <= 1 || replay !== null}
-        >
-          Collapse all
-        </button>
-        <button
-          type="button"
-          className="btn"
-          onClick={() => void startReplay(selected ?? ROOT_ID)}
-          disabled={tree.kind !== "ready" || !root || replay !== null || !canReplay(current)}
-          title={
-            canReplay(current)
-              ? selected !== null
-                ? `Replay the history of ${scopeLabel(selected, store.nodes.get(selected)?.title, selected === ROOT_ID)}`
-                : "Replay the history of the whole tree (select a node to replay just its branch)"
-              : "Replay needs Spokes 0.4.0 or later"
-          }
-        >
-          {replay?.kind === "loading" ? "Loading history…" : "Replay"}
-        </button>
-        {server && (
-          <a className="btn" href={backlogUrl(server, ROOT_ID)}>
-            Backlog
-          </a>
-        )}
-        <span className="updated" aria-live="polite">
-          {changedAt && `Updated ${clock(changedAt)}`}
-          {checkedAt && changedAt && checkedAt.getTime() !== changedAt.getTime()
-            ? ` · checked ${clock(checkedAt)}`
-            : ""}
-        </span>
-      </header>
+      <AppBar
+        server={server}
+        tab="tree"
+        nodeId={selected ?? ROOT_ID}
+        crumb={server ?? undefined}
+        title={
+          selected !== null
+            ? (store.nodes.get(selected)?.title ?? "To do")
+            : (root?.title ?? "To do")
+        }
+        searching={searching}
+        onSearch={() => setSearching((on) => !on)}
+        extra={
+          <div className={`appbar-search ${searching ? "open" : ""}`}>
+            <Search
+              // A new server starts with an empty box.
+              key={server ?? ""}
+              server={server}
+              show={show}
+              supported={canSearch(current)}
+              disabled={tree.kind !== "ready" || !root || replay !== null}
+              onPick={(hit) => {
+                setSearching(false);
+                void pickHit(hit);
+              }}
+            />
+          </div>
+        }
+        options={
+          <>
+            <label className="picker">
+              <span className="sr-only">Server</span>
+              <select
+                value={server ?? ""}
+                onChange={(e) => {
+                  choose(e.target.value);
+                }}
+                disabled={!servers || servers.length === 0}
+              >
+                {(servers ?? []).map((s) => (
+                  <option key={s.name} value={s.name}>
+                    {s.name}
+                    {s.status === "ok"
+                      ? s.version
+                        ? ` (${s.version})`
+                        : ""
+                      : ` (${s.status.replace("_", " ")})`}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="check">
+              <input type="checkbox" checked={show.done} onChange={() => toggleShown("done")} />
+              Show done
+            </label>
+            <label className="check">
+              <input
+                type="checkbox"
+                checked={show.dropped}
+                onChange={() => toggleShown("dropped")}
+              />
+              Show dropped
+            </label>
+            <button
+              type="button"
+              className="btn"
+              onClick={() => void refresh()}
+              disabled={refreshing || tree.kind === "loading" || replay !== null}
+            >
+              {refreshing ? "Refreshing…" : "Refresh"}
+            </button>
+            <button
+              type="button"
+              className="btn"
+              onClick={() => void expandAll()}
+              disabled={expandingAll || tree.kind !== "ready" || !root || replay !== null}
+            >
+              {expandingAll ? "Expanding…" : "Expand all"}
+            </button>
+            <button
+              type="button"
+              className="btn"
+              onClick={collapseAll}
+              disabled={
+                expandingAll || tree.kind !== "ready" || expanded.size <= 1 || replay !== null
+              }
+            >
+              Collapse all
+            </button>
+            <button
+              type="button"
+              className="btn"
+              onClick={() => void startReplay(selected ?? ROOT_ID)}
+              disabled={tree.kind !== "ready" || !root || replay !== null || !canReplay(current)}
+              title={
+                canReplay(current)
+                  ? selected !== null
+                    ? `Replay the history of ${scopeLabel(selected, store.nodes.get(selected)?.title, selected === ROOT_ID)}`
+                    : "Replay the history of the whole tree (select a node to replay just its branch)"
+                  : "Replay needs Spokes 0.4.0 or later"
+              }
+            >
+              {replay?.kind === "loading" ? "Loading history…" : "Replay"}
+            </button>
+            <span className="updated" aria-live="polite">
+              {changedAt && `Updated ${clock(changedAt)}`}
+              {checkedAt && changedAt && checkedAt.getTime() !== changedAt.getTime()
+                ? ` · checked ${clock(checkedAt)}`
+                : ""}
+            </span>
+          </>
+        }
+      />
       {(refreshError ?? expandNote ?? (store.truncated && tree.kind === "ready")) && (
         <div className={`notice ${refreshError ? "warn" : ""}`} role="status">
           {refreshError ??
@@ -925,20 +947,16 @@ export function App(): ReactElement {
           server={server}
         />
       )}
-      {menu && menuNode && (
-        <ContextMenu
+      {menu && menuNode && server && (
+        <NodeActions
+          via={menu.via}
           x={menu.x}
           y={menu.y}
-          heading={`${spokeId(menuNode.id)} ${menuNode.title}`}
+          id={menuNode.id}
+          title={menuNode.title}
           onClose={closeMenu}
           items={[
-            ...(menuNode.child_count > 0 && server
-              ? [
-                  { label: "View Backlog", href: backlogUrl(server, menuNode.id) },
-                  { label: "View Kanban", href: kanbanUrl(server, menuNode.id) },
-                ]
-              : []),
-            { label: "Show details", onPick: () => select(menuNode.id) },
+            { label: "Show details", icon: "details" as const, onPick: () => select(menuNode.id) },
             ...(menuNode.child_count > 0
               ? [
                   {
@@ -946,15 +964,23 @@ export function App(): ReactElement {
                       expanded.has(menuNode.id) && knownChildren(store, menuNode.id).length > 0
                         ? "Collapse branch"
                         : "Expand branch",
+                    icon: "expand" as const,
                     onPick: () => void toggle(menuNode.id),
                   },
-                  { label: "Expand all below", onPick: () => void expandAll(menuNode.id) },
+                  {
+                    label: "Expand all below",
+                    hint: "Open every level under it",
+                    icon: "expand" as const,
+                    onPick: () => void expandAll(menuNode.id),
+                  },
                 ]
               : []),
             ...(menuNode.id !== ROOT_ID
               ? [
                   {
                     label: "Close others",
+                    hint: "Collapse every other branch",
+                    icon: "collapse" as const,
                     onPick: () => {
                       setExpanded(closeOthers(store, expanded, menuNode.id));
                       setExpandNote(null);
@@ -963,6 +989,7 @@ export function App(): ReactElement {
                   },
                 ]
               : []),
+            ...linkActions(server, menuNode, { tree: false }),
           ]}
         />
       )}

@@ -119,7 +119,7 @@ export function NodeDetails(props: DetailsProps): ReactElement {
           <p className="ids">
             <span className="mono">{spokeId(n.id)}</span> · {n.kind}
             {n.ordered ? " · ordered steps" : ""} ·{" "}
-            <span className={`status-text s-${n.status}`}>{STATUS_LABEL[n.status]}</span>
+            <span className={`chip status-chip s-${n.status}`}>{STATUS_LABEL[n.status]}</span>
           </p>
           {actions?.(n)}
           {detail.error && <p className="warn">{detail.error}</p>}

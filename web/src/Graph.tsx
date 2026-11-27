@@ -49,9 +49,18 @@ export interface GraphProps {
   topInset?: number;
   /** Centre the view on `id` once it is laid out; a new `key` asks again (search). */
   focusOn?: { id: number; key: number } | null;
-  /** Right-click (or the menu key) on a node, at a point in viewport pixels. */
-  onMenu: (id: number, x: number, y: number) => void;
+  /**
+   * Right-click, the menu key or a long-press on a node, at a point in viewport pixels.
+   * `via` says how, so touch can get a bottom sheet and a mouse a menu at the pointer.
+   */
+  onMenu: (id: number, x: number, y: number, via: MenuVia) => void;
 }
+
+/** How a node's actions were asked for. */
+export type MenuVia = "pointer" | "touch" | "key";
+
+/** How long a finger rests on a node before its actions open. */
+export const LONG_PRESS_MS = 450;
 
 export function Graph(props: GraphProps): ReactElement {
   const {
@@ -68,6 +77,14 @@ export function Graph(props: GraphProps): ReactElement {
   } = props;
   const follow = props.follow ?? false;
   const topInset = props.topInset ?? 0;
+  // The gesture effect below reads the latest onMenu without re-binding its listeners.
+  const onMenuRef = useRef(onMenu);
+  useEffect(() => {
+    onMenuRef.current = onMenu;
+  }, [onMenu]);
+  // When a long-press last opened the actions; a touch browser's own contextmenu event
+  // for the same press is ignored.
+  const longPressAt = useRef(0);
   const svgRef = useRef<SVGSVGElement>(null);
   const viewportRef = useRef<SVGGElement>(null);
   const boxRef = useRef<HTMLDivElement>(null);
@@ -287,6 +304,11 @@ export function Graph(props: GraphProps): ReactElement {
     const pointers = new Map<number, { x: number; y: number }>();
     let start: { x: number; y: number } | null = null;
     let pinch: { d: number } | null = null;
+    let press: number | undefined;
+    const cancelPress = () => {
+      if (press !== undefined) window.clearTimeout(press);
+      press = undefined;
+    };
     const local = (e: { clientX: number; clientY: number }) => {
       const r = svg.getBoundingClientRect();
       return { x: e.clientX - r.left, y: e.clientY - r.top };
@@ -302,7 +324,24 @@ export function Graph(props: GraphProps): ReactElement {
       pointers.set(e.pointerId, local(e));
       start = local(e);
       dragged.current = false;
+      cancelPress();
+      // A finger resting on a node opens its actions (a mouse uses right-click).
+      const node = (e.target as Element | null)?.closest("[data-id]");
+      const id = node ? Number(node.getAttribute("data-id")) : NaN;
+      if (e.pointerType !== "mouse" && pointers.size === 1 && Number.isFinite(id)) {
+        const { clientX, clientY } = e;
+        press = window.setTimeout(() => {
+          press = undefined;
+          if (pointers.size !== 1 || dragged.current) return;
+          // Swallow the click that ends this press.
+          dragged.current = true;
+          longPressAt.current = Date.now();
+          if ("vibrate" in navigator) navigator.vibrate(10);
+          onMenuRef.current(id, clientX, clientY, "touch");
+        }, LONG_PRESS_MS);
+      }
       if (pointers.size === 2) {
+        cancelPress();
         const [a, b] = [...pointers.values()];
         if (a && b) pinch = { d: Math.hypot(a.x - b.x, a.y - b.y) };
       }
@@ -313,6 +352,7 @@ export function Graph(props: GraphProps): ReactElement {
       const p = local(e);
       pointers.set(e.pointerId, p);
       if (start && Math.hypot(p.x - start.x, p.y - start.y) > 4 && !dragged.current) {
+        cancelPress();
         dragged.current = true;
         userMoved.current = true;
         pinned.current = null;
@@ -343,6 +383,7 @@ export function Graph(props: GraphProps): ReactElement {
       }
     };
     const onUp = (e: PointerEvent) => {
+      cancelPress();
       pointers.delete(e.pointerId);
       if (pointers.size < 2) pinch = null;
       if (pointers.size === 0) {
@@ -357,6 +398,7 @@ export function Graph(props: GraphProps): ReactElement {
     svg.addEventListener("pointerup", onUp);
     svg.addEventListener("pointercancel", onUp);
     return () => {
+      cancelPress();
       svg.removeEventListener("wheel", onWheel);
       svg.removeEventListener("pointerdown", onDown);
       svg.removeEventListener("pointermove", onMove);
@@ -391,7 +433,8 @@ export function Graph(props: GraphProps): ReactElement {
     const id = idFrom(e.target);
     if (id === null) return;
     e.preventDefault();
-    onMenu(id, e.clientX, e.clientY);
+    if (Date.now() - longPressAt.current < 1000) return;
+    onMenu(id, e.clientX, e.clientY, "pointer");
   };
   const onKeyDown = (e: KeyboardEvent) => {
     const id = idFrom(e.target);
@@ -399,7 +442,7 @@ export function Graph(props: GraphProps): ReactElement {
     if (e.key === "ContextMenu" || (e.key === "F10" && e.shiftKey)) {
       e.preventDefault();
       const r = (e.target as Element).getBoundingClientRect();
-      onMenu(id, r.left + r.width / 2, r.top + r.height / 2);
+      onMenu(id, r.left + r.width / 2, r.top + r.height / 2, "key");
     } else if (e.key === "Enter") {
       e.preventDefault();
       onSelect(id);
@@ -434,7 +477,7 @@ export function Graph(props: GraphProps): ReactElement {
         ref={svgRef}
         className="graph-svg"
         role="tree"
-        aria-label="To-do tree. Drag to pan, scroll or pinch to zoom. Enter opens a node, Space expands or collapses it, right-click or the menu key shows more."
+        aria-label="To-do tree. Drag to pan, scroll or pinch to zoom. Enter opens a node, Space expands or collapses it, right-click, the menu key or a long-press shows more."
         onClick={onClick}
         onDoubleClick={onDoubleClick}
         onContextMenu={onContextMenu}
