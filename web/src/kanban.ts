@@ -1,6 +1,6 @@
 import { isClosed, REFINEMENT_LABEL, REFINEMENTS, refinementOf, STATUS_LABEL } from "./format";
 import type { Crumb, Shown, Status, TreeResponse, ViewNode } from "./types";
-import { withShown } from "./urlState";
+import { NODE_PARAM, withShown } from "./urlState";
 
 /** URL parameter that turns the page into a kanban board of one node's descendants. */
 export const KANBAN_PARAM = "kanban";
@@ -21,6 +21,13 @@ export function kanbanUrl(server: string, id: number, group?: Grouping, show?: S
   const q = new URLSearchParams({ server, [KANBAN_PARAM]: String(id) });
   if (group === "refinement") q.set(GROUP_PARAM, "refinement");
   if (show) withShown(q, show);
+  return `/?${q.toString()}`;
+}
+
+/** The tree page on `server`, centred on node `id` (the root, or no id, is the plain tree). */
+export function treeUrl(server: string, id?: number): string {
+  const q = new URLSearchParams({ server });
+  if (id !== undefined && id !== 1) q.set(NODE_PARAM, String(id));
   return `/?${q.toString()}`;
 }
 

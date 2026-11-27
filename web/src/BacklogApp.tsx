@@ -26,7 +26,7 @@ import {
   TYPE_LABEL,
   isEpic,
 } from "./format";
-import { kanbanUrl } from "./kanban";
+import { kanbanUrl, treeUrl } from "./kanban";
 import { NodeModal } from "./NodeModal";
 import { TypeRefinementChips } from "./TypeRefinementChips";
 import { filterFrom, replaceQuery, withFilter } from "./urlState";
@@ -133,7 +133,7 @@ export function BacklogApp({ server, rootId }: Props): ReactElement {
       <header className="bar">
         <h1>
           <span className="logo" aria-hidden="true" />
-          <a className="home" href={server ? `/?server=${encodeURIComponent(server)}` : "/"}>
+          <a className="home" href={server ? treeUrl(server, rootId) : "/"}>
             Spokes view
           </a>
           <span className="muted">/</span>

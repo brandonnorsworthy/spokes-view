@@ -46,7 +46,7 @@ export function mergePage(data: SearchResponse, next: SearchResponse): SearchRes
  * The toggles to show a hit that the current ones hide: `hidden_by` names the boxes that
  * must be ticked. Returns null when nothing has to change.
  */
-export function togglesForHit(hit: SearchHit, show: Shown): Shown | null {
+export function togglesForHit(hit: Pick<SearchHit, "hidden_by">, show: Shown): Shown | null {
   const by = hit.hidden_by ?? [];
   const next: Shown = {
     done: show.done || by.includes("done"),

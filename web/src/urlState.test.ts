@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { backlogUrl } from "./backlog";
-import { kanbanUrl } from "./kanban";
+import { kanbanUrl, treeUrl } from "./kanban";
 import { filterFrom, nodeFrom, shownFrom, withFilter, withShown } from "./urlState";
 
 describe("shown in the URL", () => {
@@ -73,5 +73,10 @@ describe("link builders", () => {
         { text: "x", type: "bug", refinement: "any" },
       ),
     ).toBe("/?server=Home&backlog=5&dropped=1&q=x&type=bug");
+  });
+  it("treeUrl centres a node except the root", () => {
+    expect(treeUrl("Home", 1017)).toBe("/?server=Home&node=1017");
+    expect(treeUrl("Home", 1)).toBe("/?server=Home");
+    expect(treeUrl("Home")).toBe("/?server=Home");
   });
 });
