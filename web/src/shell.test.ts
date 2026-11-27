@@ -17,4 +17,15 @@ describe("phone app bar", () => {
       .pop();
     expect(rule).toMatch(/(^|[^-])backdrop-filter: none/);
   });
+
+  it("drops the blur on the phone's open search bar, so its result list fills the screen", () => {
+    const phone = [...css.matchAll(/@media \(max-width: 760px\) \{([\s\S]*?)\n\}/g)].map(
+      (m) => m[1] ?? "",
+    );
+    const rule = phone
+      .map((block) => /\.appbar-search\.open \{([^}]*)\}/.exec(block)?.[1] ?? "")
+      .filter((body) => body.includes("backdrop-filter"))
+      .pop();
+    expect(rule).toMatch(/(^|[^-])backdrop-filter: none/);
+  });
 });

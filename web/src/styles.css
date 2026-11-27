@@ -2881,3 +2881,275 @@ dialog.sheet-layer:focus {
     width: 13rem;
   }
 }
+
+/* ---------- Release D (SPOKE-1026): backlog chips, phone search ---------- */
+.filter-chips {
+  display: none;
+}
+@media (max-width: 760px) {
+  /* The backlog page shares the board's main area, whose phone layout turns scrolling off
+     (each board column scrolls itself); the backlog's list scrolls as one page instead. */
+  .backlog-app .kanban-main {
+    display: block;
+    overflow-y: auto;
+  }
+  /* Active filters as chips under the header; the controls live in the options sheet. */
+  .filter-chips {
+    position: sticky;
+    top: 0;
+    z-index: 3;
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.55rem 0.75rem;
+    overflow-x: auto;
+    scrollbar-width: none;
+    background: var(--bg-2);
+    border-bottom: 1px solid color-mix(in srgb, var(--line) 70%, transparent);
+  }
+  .filter-chips::-webkit-scrollbar {
+    display: none;
+  }
+  .filter-open,
+  .filter-chip {
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    height: 2.25rem;
+    border-radius: 999px;
+    font: inherit;
+    font-size: 0.85rem;
+    white-space: nowrap;
+  }
+  .filter-open {
+    padding: 0 0.85rem;
+    border: none;
+    background: var(--bg-3);
+    color: var(--text);
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .filter-open.on {
+    background: color-mix(in srgb, var(--accent) 16%, transparent);
+    color: var(--accent);
+  }
+  .filter-chip {
+    padding: 0 0.2rem 0 0.75rem;
+    border: 1px solid color-mix(in srgb, var(--line) 80%, transparent);
+  }
+  .filter-chip button {
+    display: grid;
+    place-items: center;
+    width: 1.9rem;
+    height: 1.9rem;
+    border: none;
+    border-radius: 50%;
+    background: none;
+    color: var(--muted);
+    cursor: pointer;
+  }
+  .filter-count {
+    flex: none;
+    margin-left: 0.25rem;
+    color: var(--muted);
+    font-size: 0.8rem;
+    white-space: nowrap;
+  }
+
+  /* Search from the Search tab fills the screen between the header and the tab bar, with
+     big rows for a finger. */
+  .appbar-search.open .search-results {
+    position: fixed;
+    left: 0;
+    right: 0;
+    width: auto;
+    top: calc(var(--bar-h) + env(safe-area-inset-top) + 4.25rem);
+    bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom));
+    max-height: none;
+    margin: 0;
+    border: none;
+    border-top: 1px solid color-mix(in srgb, var(--line) 70%, transparent);
+    border-radius: 0;
+    background: var(--bg);
+    overflow-y: auto;
+    box-shadow: none;
+  }
+  .appbar-search.open .search-hit {
+    min-height: 3.5rem;
+    padding: 0.7rem 1rem;
+    border-bottom: 1px solid color-mix(in srgb, var(--line) 50%, transparent);
+  }
+  .appbar-search.open .search-title {
+    font-size: 1rem;
+    white-space: normal;
+  }
+  .appbar-search.open .search-path {
+    white-space: normal;
+  }
+  .appbar-search.open .search-more,
+  .appbar-search.open .search-note {
+    min-height: 3rem;
+    padding: 0.8rem 1rem;
+  }
+}
+@media (max-width: 760px) {
+  /* No blur on the phone's search bar: a backdrop-filter would make it the containing
+     block of its fixed result list (the same trap as the header's options sheet). */
+  .appbar-search.open {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    background: var(--bg-2);
+  }
+}
+
+/* ---------- Replay bar on a phone (SPOKE-1026, Release D) ----------
+   Docked above the tab bar, a scrubber on top and big touch targets below; the rest is in a
+   sheet behind the "more" button. Wide screens keep the floating bar above. */
+@media (max-width: 760px) {
+  .replay.replay-phone {
+    position: fixed;
+    top: auto;
+    left: 0.5rem;
+    right: 0.5rem;
+    bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom) + 0.5rem);
+    transform: none;
+    width: auto;
+    z-index: 25;
+    gap: 0.25rem;
+    padding: 0.6rem 0.75rem 0.5rem;
+    border-radius: var(--radius-xl);
+    background: var(--glass);
+    backdrop-filter: blur(18px) saturate(1.4);
+    -webkit-backdrop-filter: blur(18px) saturate(1.4);
+  }
+  .rp-caption {
+    display: flex;
+    align-items: baseline;
+    gap: 0.6rem;
+    min-width: 0;
+    font-size: 0.85rem;
+  }
+  .rp-what {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .rp-pos {
+    flex: none;
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+  }
+  .replay-phone .replay-scrub {
+    height: 2.25rem;
+    margin: 0;
+  }
+  .replay-phone .replay-scrub::-webkit-slider-thumb {
+    width: 1.75rem;
+    height: 1.75rem;
+  }
+  .replay-phone .replay-scrub::-moz-range-thumb {
+    width: 1.75rem;
+    height: 1.75rem;
+  }
+  .rp-row {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+  }
+  .rp-btn {
+    display: grid;
+    place-items: center;
+    flex: 1 1 0;
+    min-width: var(--tap);
+    min-height: var(--tap);
+    padding: 0;
+    border: none;
+    border-radius: var(--radius);
+    background: var(--bg-3);
+    color: var(--text);
+    font: inherit;
+    font-variant-emoji: text;
+    cursor: pointer;
+    transition: transform 0.12s var(--ease);
+  }
+  .rp-btn:active:not(:disabled) {
+    transform: scale(0.95);
+  }
+  .rp-btn:disabled {
+    opacity: 0.4;
+    cursor: default;
+  }
+  .rp-btn.rp-play {
+    flex: 1.6 1 0;
+    min-height: 3.25rem;
+    background: var(--accent);
+    color: #fff;
+    font-size: 1.3rem;
+  }
+  .rp-btn.rp-speed {
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+  }
+  .sheet.replay-sheet {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    padding: 0 1.25rem max(1rem, env(safe-area-inset-bottom));
+  }
+  .replay-sheet .sheet-handle {
+    flex: none;
+  }
+  .rs-head {
+    color: var(--muted);
+    font-size: 0.9rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .rs-jump {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.5rem;
+  }
+  .rs-jump .btn {
+    min-height: var(--tap);
+  }
+  .replay-sheet .segmented {
+    display: grid;
+  }
+  .replay-sheet .segmented button {
+    min-height: var(--tap);
+  }
+  .replay-sheet .opt-toggle {
+    justify-content: space-between;
+    min-height: var(--tap);
+    padding: 0 0.9rem;
+    border-radius: var(--radius);
+    background: var(--bg-3);
+  }
+  .replay-sheet .replay-key {
+    gap: 0.4rem 1rem;
+    font-size: 0.85rem;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .rp-btn {
+    transition: none;
+  }
+  .rp-btn:active:not(:disabled) {
+    transform: none;
+  }
+}
+@media (max-width: 760px) {
+  /* While the phone's replay bar is docked at the bottom, the zoom buttons move above it
+     (they sat behind it, showing faintly through the glass and out of reach). */
+  .main:has(.replay-phone) .zoom-buttons {
+    bottom: 12.5rem;
+  }
+  .main:has(.replay-phone) .legend {
+    display: none;
+  }
+}
