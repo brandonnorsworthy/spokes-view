@@ -39,6 +39,7 @@ import {
 } from "./treeStore";
 import { Search } from "./Search";
 import { togglesForHit } from "./search";
+import { nodeFrom, NODE_PARAM, replaceQuery } from "./urlState";
 import type { SearchHit, ServerEntry, Shown, TreeResponse } from "./types";
 
 /** Levels loaded on a server's first load, and per branch opened later. */
@@ -384,7 +385,7 @@ export function App(): ReactElement {
   // Jump to a search hit: load the branches down to it, open them, select and centre it.
   const shownNow = show;
   const reveal = useCallback(
-    async (hit: SearchHit, over?: { show: Shown; slices: Slice[] }) => {
+    async (hit: Pick<SearchHit, "id" | "path">, over?: { show: Shown; slices: Slice[] }) => {
       if (!server) return;
       const gen = generation.current;
       const show = over?.show ?? shownNow;
@@ -438,7 +439,7 @@ export function App(): ReactElement {
   // Picking a hit that "Show done" / "Show dropped" hide ticks those boxes first, reloads
   // the tree under them, and then jumps.
   const pickHit = useCallback(
-    async (hit: SearchHit) => {
+    async (hit: Pick<SearchHit, "id" | "path" | "hidden_by">) => {
       const next = togglesForHit(hit, show);
       if (!next || !server) {
         await reveal(hit);
@@ -450,6 +451,46 @@ export function App(): ReactElement {
     },
     [server, show, load, reveal],
   );
+
+  // `?node=<id>`: once the tree is ready, jump to that node as a search pick would. The node
+  // is fetched with everything shown, so a done or dropped one still gives its path.
+  const pendingNode = useRef<number | null>(nodeFrom(window.location.search));
+  const nodeSync = useRef(pendingNode.current === null);
+  useEffect(() => {
+    const id = pendingNode.current;
+    if (id === null || !server || tree.kind !== "ready") return;
+    pendingNode.current = null;
+    const done = (): void => {
+      nodeSync.current = true;
+    };
+    fetchNode(server, id, { done: true, dropped: true }, null)
+      .then(async (r) => {
+        if (!r.data) throw new Error("no data");
+        const status = r.data.node.status;
+        const hidden_by: Array<"done" | "dropped"> =
+          status === "done" || status === "dropped" ? [status] : [];
+        await pickHit({ id, path: r.data.path, hidden_by });
+      })
+      .catch((e: unknown) => {
+        const err = errorOf(e);
+        setRefreshError(
+          err.code === "not_found"
+            ? `${spokeId(id)} is not in the tree.`
+            : `Could not show ${spokeId(id)}: ${err.message}`,
+        );
+        replaceQuery((p) => p.delete(NODE_PARAM));
+      })
+      .finally(done);
+  }, [server, tree.kind, pickHit]);
+
+  // Keep `node=` in step with the selection, so a refresh keeps it.
+  useEffect(() => {
+    if (!nodeSync.current) return;
+    replaceQuery((p) => {
+      if (selected !== null && selected !== ROOT_ID) p.set(NODE_PARAM, String(selected));
+      else p.delete(NODE_PARAM);
+    });
+  }, [selected]);
 
   // The found node glows once; the glow is dropped after it has played.
   useEffect(() => {

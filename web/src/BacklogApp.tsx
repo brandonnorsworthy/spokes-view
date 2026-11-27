@@ -26,9 +26,10 @@ import {
   TYPE_LABEL,
   isEpic,
 } from "./format";
-import { kanbanUrl } from "./kanban";
+import { kanbanUrl, treeUrl } from "./kanban";
 import { NodeModal } from "./NodeModal";
 import { TypeRefinementChips } from "./TypeRefinementChips";
+import { filterFrom, replaceQuery, withFilter } from "./urlState";
 import { useSubtree } from "./useSubtree";
 import { ViewLinks } from "./ViewLinks";
 
@@ -53,7 +54,15 @@ export function BacklogApp({ server, rootId }: Props): ReactElement {
     closeDetail,
   } = useSubtree(server, rootId);
   const [collapsed, setCollapsed] = useState<ReadonlySet<number>>(new Set());
-  const [filter, setFilter] = useState<RowFilter>(NO_FILTER);
+  const [filter, setFilter] = useState<RowFilter>(() => ({
+    ...NO_FILTER,
+    ...filterFrom(window.location.search),
+  }));
+  const changeFilter = (patch: Partial<RowFilter>): void => {
+    const next = { ...filter, ...patch };
+    setFilter(next);
+    replaceQuery((p) => withFilter(p, next));
+  };
 
   const outline = useMemo(() => (data ? buildOutline(data) : []), [data]);
   const rows = useMemo(() => visibleRows(outline, collapsed, filter), [outline, collapsed, filter]);
@@ -124,7 +133,7 @@ export function BacklogApp({ server, rootId }: Props): ReactElement {
       <header className="bar">
         <h1>
           <span className="logo" aria-hidden="true" />
-          <a className="home" href={server ? `/?server=${encodeURIComponent(server)}` : "/"}>
+          <a className="home" href={server ? treeUrl(server, rootId) : "/"}>
             Spokes view
           </a>
           <span className="muted">/</span>
@@ -147,16 +156,14 @@ export function BacklogApp({ server, rootId }: Props): ReactElement {
             type="search"
             placeholder="Filter by title or SPOKE-N"
             value={filter.text}
-            onChange={(e) => setFilter((f) => ({ ...f, text: e.target.value }))}
+            onChange={(e) => changeFilter({ text: e.target.value })}
           />
         </label>
         <label className="filter">
           <span className="sr-only">Type</span>
           <select
             value={filter.type}
-            onChange={(e) =>
-              setFilter((f) => ({ ...f, type: e.target.value as RowFilter["type"] }))
-            }
+            onChange={(e) => changeFilter({ type: e.target.value as RowFilter["type"] })}
           >
             <option value="any">Any type</option>
             {NODE_TYPES.map((t) => (
@@ -172,7 +179,7 @@ export function BacklogApp({ server, rootId }: Props): ReactElement {
           <select
             value={filter.refinement}
             onChange={(e) =>
-              setFilter((f) => ({ ...f, refinement: e.target.value as RowFilter["refinement"] }))
+              changeFilter({ refinement: e.target.value as RowFilter["refinement"] })
             }
           >
             <option value="any">Any refinement</option>

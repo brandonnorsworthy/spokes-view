@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type ReactElement, type ReactNode } from "react";
 import { backlogUrl } from "./backlog";
 import { clock, markers, spokeId, isEpic } from "./format";
-import { buildBoard, GROUP_PARAM, groupingFrom, type Card, type Grouping } from "./kanban";
+import { buildBoard, GROUP_PARAM, groupingFrom, treeUrl, type Card, type Grouping } from "./kanban";
 import { NodeModal } from "./NodeModal";
 import { TypeRefinementChips } from "./TypeRefinementChips";
 import { useSubtree } from "./useSubtree";
@@ -100,7 +100,7 @@ export function KanbanApp({ server, rootId }: Props): ReactElement {
       <header className="bar">
         <h1>
           <span className="logo" aria-hidden="true" />
-          <a className="home" href={server ? `/?server=${encodeURIComponent(server)}` : "/"}>
+          <a className="home" href={server ? treeUrl(server, rootId) : "/"}>
             Spokes view
           </a>
           <span className="muted">/</span>
