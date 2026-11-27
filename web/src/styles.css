@@ -2150,3 +2150,13 @@ a.btn {
   background: var(--bg-3);
   color: var(--text);
 }
+@media (max-width: 760px) {
+  /* No blur on the phone header: a backdrop-filter makes the header the containing block of
+     its fixed children, so the options sheet and the search bar would hang off the top of the
+     screen instead of sitting at the bottom and under the header. */
+  .appbar {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    background: var(--bg-2);
+  }
+}
