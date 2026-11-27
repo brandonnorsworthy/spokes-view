@@ -2637,10 +2637,6 @@ a.btn {
     overflow-y: auto;
     overscroll-behavior: contain;
   }
-  .panel[data-snap="peek"],
-  .modal[data-snap="peek"] {
-    height: 150px;
-  }
   .panel[data-snap="half"],
   .modal[data-snap="half"] {
     height: 55dvh;
@@ -2773,4 +2769,25 @@ a.btn {
 }
 .iso-exit:hover {
   background: color-mix(in srgb, var(--waiting) 32%, transparent);
+}
+
+/* Long words and links (a URL in a question, a hash in a title) wrap inside the details
+   instead of pushing the sheet off the side of the screen. */
+.details,
+.details .callout,
+.details h2,
+.details dd,
+.details .notes {
+  overflow-wrap: anywhere;
+}
+.details {
+  overflow-x: hidden;
+}
+@media (pointer: coarse) {
+  /* The sheet takes focus on its handle when it opens; on a touch screen that is not a
+     keyboard focus, so no ring around the bar. */
+  .sheet-grip:focus,
+  .sheet-grip:focus-visible {
+    outline: none;
+  }
 }

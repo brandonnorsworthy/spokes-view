@@ -22,7 +22,7 @@ interface Props {
 export function NodeModal(props: Props): ReactElement {
   const { onClose } = props;
   const ref = useRef<HTMLDialogElement>(null);
-  // On a phone the dialog is a bottom sheet you can drag between peek, half and full.
+  // On a phone the dialog is a bottom sheet you drag between half and full, or down to close.
   const phone = usePhone();
   const sheet = useSheetSnap(phone, onClose);
 

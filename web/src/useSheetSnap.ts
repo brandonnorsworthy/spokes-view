@@ -9,9 +9,9 @@ export interface SheetGrip {
 }
 
 /**
- * Drag a phone's details sheet between peek, half and full by its top (the handle and the
+ * Drag a phone's details sheet between half and full by its top (the handle and the
  * header): the sheet follows the finger, then settles on the nearest height, a flick moves
- * one step, pulling it down past the peek closes it, and a tap on the handle opens it to
+ * one step, swiping down from half closes it in one go, and a tap on the handle opens it to
  * full (or back to half). Off (`enabled` false) on wide screens, where it is a side panel.
  */
 export function useSheetSnap(
