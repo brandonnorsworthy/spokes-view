@@ -1,8 +1,7 @@
 import { useEffect, useState, type ReactElement, type ReactNode } from "react";
 import { backlogUrl } from "./backlog";
 import { Icon, type IconName } from "./Icon";
-import { kanbanUrl } from "./kanban";
-import { treeLink } from "./NodeActions";
+import { kanbanUrl, treeUrl } from "./kanban";
 
 export type Tab = "tree" | "board" | "backlog" | "search";
 
@@ -65,11 +64,10 @@ export function AppBar({
 
   const hrefFor = (t: Tab): string | undefined => {
     if (!server) return undefined;
-    if (t === "tree")
-      return nodeId === 1 ? `/?server=${encodeURIComponent(server)}` : treeLink(server, nodeId);
+    if (t === "tree") return treeUrl(server, nodeId);
     if (t === "board") return kanbanUrl(server, nodeId);
     if (t === "backlog") return backlogUrl(server, nodeId);
-    return onSearch ? undefined : `${treeLink(server, nodeId)}&search=1`;
+    return onSearch ? undefined : `${treeUrl(server, nodeId)}&search=1`;
   };
 
   const tabs = (where: "top" | "bottom") => (

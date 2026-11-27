@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState, type ReactElement, type ReactNode } from "react";
-import { backlogUrl } from "./backlog";
 import { clock, markers, spokeId, isEpic } from "./format";
-import { buildBoard, GROUP_PARAM, groupingFrom, treeUrl, type Card, type Grouping } from "./kanban";
+import { buildBoard, GROUP_PARAM, groupingFrom, type Card, type Grouping } from "./kanban";
+import { AppBar } from "./AppBar";
+import type { MenuVia } from "./Graph";
+import { linkActions, NodeActions, useNodeMenu } from "./NodeActions";
 import { NodeModal } from "./NodeModal";
 import { TypeRefinementChips } from "./TypeRefinementChips";
 import { useSubtree } from "./useSubtree";
@@ -37,9 +39,11 @@ export function KanbanApp({ server, rootId }: Props): ReactElement {
     window.history.replaceState(window.history.state, "", url);
   };
 
+  const [menu, setMenu] = useState<{ id: number; x: number; y: number; via: MenuVia } | null>(null);
   const board = useMemo(() => (data ? buildBoard(data, show, group) : []), [data, show, group]);
   const rootNode = data?.nodes.find((n) => n.id === rootId);
   const nodesById = useMemo(() => new Map(data?.nodes.map((n) => [n.id, n])), [data]);
+  const menuNode = menu ? nodesById.get(menu.id) : undefined;
   const total = board.reduce((sum, c) => sum + c.cards.length, 0);
   const today = data?.today ?? "";
 
@@ -85,7 +89,12 @@ export function KanbanApp({ server, rootId }: Props): ReactElement {
             <ol className="cards">
               {col.cards.map((c) => (
                 <li key={c.node.id}>
-                  <KanbanCard card={c} today={today} onOpen={open} />
+                  <KanbanCard
+                    card={c}
+                    today={today}
+                    onOpen={open}
+                    onMenu={(x, y, via) => setMenu({ id: c.node.id, x, y, via })}
+                  />
                 </li>
               ))}
             </ol>
@@ -97,57 +106,58 @@ export function KanbanApp({ server, rootId }: Props): ReactElement {
 
   return (
     <div className="app kanban-app">
-      <header className="bar">
-        <h1>
-          <span className="logo" aria-hidden="true" />
-          <a className="home" href={server ? treeUrl(server, rootId) : "/"}>
-            Spokes view
-          </a>
-          <span className="muted">/</span>
-          <span className="board-title">
-            {data && data.path.length > 0 && (
-              <span className="board-path">{data.path.map((c) => c.title).join(" / ")} /</span>
-            )}
-            <strong>{rootNode?.title ?? spokeId(rootId)}</strong>
-          </span>
-        </h1>
-        {server && <span className="chip">{server}</span>}
-        {server && (
-          <a className="btn" href={backlogUrl(server, rootId)}>
-            Backlog
-          </a>
-        )}
-        <label>
-          <span className="sr-only">Group by</span>
-          <select
-            value={group}
-            onChange={(e) => changeGroup(groupingFrom(`?group=${e.target.value}`))}
-          >
-            <option value="status">Group by status</option>
-            <option value="refinement">Group by refinement</option>
-          </select>
-        </label>
-        <label className="check">
-          <input type="checkbox" checked={show.done} onChange={() => toggleShown("done")} />
-          Show done
-        </label>
-        <label className="check">
-          <input type="checkbox" checked={show.dropped} onChange={() => toggleShown("dropped")} />
-          Show dropped
-        </label>
-        <button
-          type="button"
-          className="btn"
-          onClick={() => void refresh()}
-          disabled={refreshing || !data}
-        >
-          {refreshing ? "Refreshing…" : "Refresh"}
-        </button>
-        <span className="updated" aria-live="polite">
-          {data && `${total} items`}
-          {checkedAt && ` · checked ${clock(checkedAt)}`}
-        </span>
-      </header>
+      <AppBar
+        server={server}
+        tab="board"
+        nodeId={rootId}
+        crumb={
+          data && data.path.length > 0
+            ? data.path
+                .slice(-2)
+                .map((c) => c.title)
+                .join(" › ")
+            : undefined
+        }
+        title={rootNode?.title ?? spokeId(rootId)}
+        options={
+          <>
+            <label>
+              <span className="sr-only">Group by</span>
+              <select
+                value={group}
+                onChange={(e) => changeGroup(groupingFrom(`?group=${e.target.value}`))}
+              >
+                <option value="status">Group by status</option>
+                <option value="refinement">Group by refinement</option>
+              </select>
+            </label>
+            <label className="check">
+              <input type="checkbox" checked={show.done} onChange={() => toggleShown("done")} />
+              Show done
+            </label>
+            <label className="check">
+              <input
+                type="checkbox"
+                checked={show.dropped}
+                onChange={() => toggleShown("dropped")}
+              />
+              Show dropped
+            </label>
+            <button
+              type="button"
+              className="btn"
+              onClick={() => void refresh()}
+              disabled={refreshing || !data}
+            >
+              {refreshing ? "Refreshing…" : "Refresh"}
+            </button>
+            <span className="updated" aria-live="polite">
+              {data && `${total} items`}
+              {checkedAt && ` · checked ${clock(checkedAt)}`}
+            </span>
+          </>
+        }
+      />
       {(refreshError ?? data?.truncated) && (
         <div className={`notice ${refreshError ? "warn" : ""}`} role="status">
           {refreshError ??
@@ -166,6 +176,24 @@ export function KanbanApp({ server, rootId }: Props): ReactElement {
           actions={(n) => <ViewLinks server={server} node={n} />}
         />
       )}
+      {menu && menuNode && server && (
+        <NodeActions
+          via={menu.via}
+          x={menu.x}
+          y={menu.y}
+          id={menuNode.id}
+          title={menuNode.title}
+          onClose={() => setMenu(null)}
+          items={[
+            {
+              label: "Show details",
+              icon: "details",
+              onPick: () => open(menuNode.id),
+            },
+            ...linkActions(server, menuNode),
+          ]}
+        />
+      )}
     </div>
   );
 }
@@ -174,12 +202,15 @@ function KanbanCard({
   card,
   today,
   onOpen,
+  onMenu,
 }: {
   card: Card;
   today: string;
   onOpen: (id: number) => void;
+  onMenu: (x: number, y: number, via: MenuVia) => void;
 }): ReactElement {
   const n = card.node;
+  const menu = useNodeMenu(onMenu);
   const ms = markers(n, today);
   const prio = n.effective_priority;
   return (
@@ -188,6 +219,7 @@ function KanbanCard({
       className={`card ${n.deferred ? "deferred" : ""} ${isEpic(n) ? "epic" : ""}`}
       data-status={n.status}
       onClick={() => onOpen(n.id)}
+      {...menu}
     >
       {card.path.length > 0 && (
         <span className="card-path">{card.path.map((p) => p.title).join(" / ")}</span>

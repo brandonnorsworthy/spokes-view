@@ -4,17 +4,11 @@ import { ContextMenu, type MenuItem } from "./ContextMenu";
 import { spokeId } from "./format";
 import { LONG_PRESS_MS, type MenuVia } from "./Graph";
 import { Icon, type IconName } from "./Icon";
-import { kanbanUrl } from "./kanban";
+import { kanbanUrl, treeUrl } from "./kanban";
 import { Sheet } from "./Sheet";
 
 /** One thing you can do with a node. Every action only views; none changes the tree. */
 export type Action = MenuItem & { hint?: string; icon?: IconName };
-
-/** The tree page centred on a node (`node=` is read by the tree page). */
-export function treeLink(server: string, id: number): string {
-  const q = new URLSearchParams({ server, node: String(id) });
-  return `/?${q.toString()}`;
-}
 
 /** Copy text, falling back to a hidden textarea: the clipboard API needs HTTPS, the LAN has HTTP. */
 export function copyText(text: string): boolean {
@@ -82,7 +76,7 @@ export function linkActions(
             label: "Show in tree",
             hint: "Centre the tree on it",
             icon: "tree" as const,
-            href: treeLink(server, node.id),
+            href: treeUrl(server, node.id),
           },
         ]),
     {
@@ -95,7 +89,7 @@ export function linkActions(
       icon: "link",
       onPick: () =>
         toast(
-          copyText(new URL(treeLink(server, node.id), window.location.href).href)
+          copyText(new URL(treeUrl(server, node.id), window.location.href).href)
             ? "Link copied"
             : "Couldn't copy",
         ),

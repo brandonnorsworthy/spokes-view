@@ -56,6 +56,25 @@ export interface GraphProps {
   onMenu: (id: number, x: number, y: number, via: MenuVia) => void;
 }
 
+/**
+ * The middle of the part of the tree you can see: a sheet marked `data-covers-graph` (the
+ * details panel on a phone) hides the bottom of it, so a focused node lands above that.
+ */
+function visibleCentre(svg: SVGSVGElement | null): { x: number; y: number } {
+  const w = svg?.clientWidth || 800;
+  const h = svg?.clientHeight || 600;
+  if (!svg) return { x: w / 2, y: h / 2 };
+  // Measure the container: the SVG itself is moved by CSS while a view animates.
+  const box = (svg.parentElement ?? svg).getBoundingClientRect();
+  let bottom = box.bottom;
+  for (const el of document.querySelectorAll("[data-covers-graph]")) {
+    const r = el.getBoundingClientRect();
+    // Only something spanning the width from below counts (not a side panel).
+    if (r.width >= box.width * 0.9 && r.top > box.top && r.top < bottom) bottom = r.top;
+  }
+  return { x: w / 2, y: Math.max(h * 0.3, bottom - box.top) / 2 };
+}
+
 /** How a node's actions were asked for. */
 export type MenuVia = "pointer" | "touch" | "key";
 
@@ -227,8 +246,7 @@ export function Graph(props: GraphProps): ReactElement {
       const from = view.current;
       // The target is worked out each frame from the graph's current size: selecting the
       // node opens the detail panel, which narrows the graph after this click.
-      const target = () =>
-        focusTarget(from, p, { x: (svg.clientWidth || 800) / 2, y: (svg.clientHeight || 600) / 2 });
+      const target = () => focusTarget(from, p, visibleCentre(svg));
       const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
       const t0 = performance.now();
       const step = (now: number) => {
@@ -452,10 +470,7 @@ export function Graph(props: GraphProps): ReactElement {
     }
   };
 
-  const centre = () => {
-    const svg = svgRef.current;
-    return { x: (svg?.clientWidth ?? 800) / 2, y: (svg?.clientHeight ?? 600) / 2 };
-  };
+  const centre = () => visibleCentre(svgRef.current);
 
   const sel = selected !== null ? layout.byId.get(selected) : undefined;
   const selPath = useMemo(() => {
