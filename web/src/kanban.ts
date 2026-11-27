@@ -132,3 +132,34 @@ export function buildBoard(slice: TreeResponse, show: Shown, group: Grouping = "
   for (const c of columns) c.cards.sort(compareCards);
   return columns;
 }
+
+/** URL parameters for the board's active column (phones) and its collapsed columns (wide screens). */
+export const COLUMN_PARAM = "col";
+export const COLLAPSED_PARAM = "collapsed";
+
+/** How many cards a column shows before "Show more". */
+export const CARD_PAGE = 50;
+
+/**
+ * The column a phone shows first: the one the URL names if the board has it, else In
+ * progress when it has cards (it is what you are working on), else the first column with
+ * cards, else the first column.
+ */
+export function initialColumn(board: readonly Column[], requested: string | null): string | null {
+  if (requested !== null && board.some((c) => c.key === requested)) return requested;
+  const working = board.find((c) => c.key === "in_progress" && c.cards.length > 0);
+  if (working) return working.key;
+  return (board.find((c) => c.cards.length > 0) ?? board[0])?.key ?? null;
+}
+
+/** The collapsed columns named in a query string (`collapsed=open,waiting`). */
+export function collapsedFrom(search: string): Set<string> {
+  const raw = new URLSearchParams(search).get(COLLAPSED_PARAM);
+  return new Set((raw ?? "").split(",").filter((k) => /^[a-z_]{1,20}$/.test(k)));
+}
+
+/** Writes the collapsed columns into `params`, removing the parameter when none are. */
+export function withCollapsed(params: URLSearchParams, collapsed: ReadonlySet<string>): void {
+  if (collapsed.size === 0) params.delete(COLLAPSED_PARAM);
+  else params.set(COLLAPSED_PARAM, [...collapsed].sort().join(","));
+}
