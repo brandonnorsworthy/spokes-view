@@ -5,6 +5,8 @@ import { backlogRootFrom } from "./backlog";
 import { BacklogApp } from "./BacklogApp";
 import { kanbanRootFrom } from "./kanban";
 import { KanbanApp } from "./KanbanApp";
+import { isTrackedPage } from "./tracked";
+import { TrackedApp } from "./TrackedApp";
 import "./styles.css";
 
 const el = document.getElementById("root");
@@ -13,6 +15,7 @@ if (!el) throw new Error("missing #root");
 /** The page the query string asks for: a backlog, a kanban board, or the graph. */
 function page(search: string): ReactElement {
   const server = new URLSearchParams(search).get("server");
+  if (isTrackedPage(search)) return <TrackedApp server={server} />;
   const backlog = backlogRootFrom(search);
   if (backlog !== null) return <BacklogApp server={server} rootId={backlog} />;
   const board = kanbanRootFrom(search);

@@ -26,6 +26,8 @@ export interface ViewNode {
   status: Status;
   /** Absent on servers older than Spokes 0.4.0. */
   type?: NodeType | null;
+  /** Spokes 0.15.0+: marked tracked through MCP (listed on the Tracked page). */
+  tracked?: boolean;
   refinement?: Refinement | null;
   priority: number | null;
   effective_priority: number | null;
@@ -164,5 +166,23 @@ export type ErrorCode =
   | "too_old"
   | "history_unsupported"
   | "search_unsupported"
+  | "tracked_unsupported"
   | "upstream_error"
   | "network";
+
+/** One node in Spokes 0.15.0's `/api/tracked`: a node marked tracked through MCP. */
+export interface TrackedEntry {
+  node: ViewNode;
+  /** Ancestors from the root down (the root included, the node itself not). */
+  path: Crumb[];
+  /** Its descendant tasks (areas and dropped ones left out). */
+  progress: { done: number; in_progress: number; total: number };
+  tracked_at: string;
+}
+
+export interface TrackedResponse {
+  time_zone: string;
+  today: string;
+  /** Newest tracked first. */
+  nodes: TrackedEntry[];
+}

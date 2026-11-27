@@ -3153,3 +3153,175 @@ dialog.sheet-layer:focus {
     display: none;
   }
 }
+
+/* ---------- Tracked (Release E, SPOKE-979) ---------- */
+@media (max-width: 760px) {
+  .tabbar {
+    grid-template-columns: repeat(5, 1fr);
+  }
+}
+.tracked-main {
+  overflow-y: auto;
+}
+.tracked-list {
+  list-style: none;
+  display: grid;
+  gap: 0.75rem;
+  max-width: 44rem;
+  margin: 0 auto;
+  padding: 0.9rem 0.9rem 2rem;
+}
+.tracked-card {
+  display: grid;
+  gap: 0.7rem;
+  padding: 1rem;
+  border: 1px solid color-mix(in srgb, var(--line) 80%, transparent);
+  border-radius: var(--radius-xl);
+  background: var(--bg-2);
+  color: var(--text);
+  text-decoration: none;
+  transition:
+    transform 0.12s var(--ease),
+    border-color 0.15s;
+  -webkit-touch-callout: none;
+  user-select: none;
+}
+.tracked-card:hover {
+  border-color: var(--accent);
+}
+.tracked-card:active {
+  transform: scale(0.98);
+}
+.tracked-top {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.8rem;
+}
+.tracked-icon {
+  --c: var(--accent);
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  border-radius: var(--radius-l);
+  background: color-mix(in srgb, var(--c) 14%, transparent);
+  color: var(--c);
+  font-size: 1.4rem;
+}
+.tracked-icon.t-epic {
+  --c: var(--t-epic);
+}
+.tracked-icon.t-feature {
+  --c: var(--t-feature);
+}
+.tracked-icon.t-bug {
+  --c: var(--t-bug);
+}
+.tracked-icon.t-chore {
+  --c: var(--t-chore);
+}
+.tracked-icon.t-idea {
+  --c: var(--t-idea);
+}
+.tracked-icon.t-spike {
+  --c: var(--t-spike);
+}
+.tracked-head {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  gap: 0.15rem;
+  line-height: 1.3;
+}
+.tracked-head small {
+  color: var(--muted);
+  font-size: 0.75rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tracked-head strong {
+  font-size: 1.05rem;
+  font-weight: 650;
+  overflow-wrap: anywhere;
+}
+.tracked-go {
+  color: var(--muted);
+  font-size: 1.4rem;
+  line-height: 1;
+}
+.tracked-bar {
+  display: flex;
+  height: 0.6rem;
+  border-radius: 999px;
+  background: var(--bg-3);
+  overflow: hidden;
+}
+.tracked-bar .bar-done {
+  background: var(--done);
+}
+.tracked-bar .bar-prog {
+  background: var(--in-progress);
+}
+.tracked-stats {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.3rem 0.9rem;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+.tracked-stats strong {
+  color: var(--text);
+}
+.tracked-stats strong.all-done {
+  color: var(--done);
+}
+.tracked-stats .dot {
+  display: inline-block;
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 50%;
+  vertical-align: 0.05rem;
+}
+.tracked-stats .dot.s-done {
+  background: var(--done);
+}
+.tracked-stats .dot.s-in_progress {
+  background: var(--in-progress);
+}
+.tracked-stats .dot.s-open {
+  background: var(--open);
+}
+.tracked-hint,
+.tracked-note {
+  color: var(--muted);
+  font-size: 0.85rem;
+  text-align: center;
+  padding: 0.5rem 1rem;
+}
+.tracked-note.warn {
+  color: var(--alert);
+}
+.tracked-empty {
+  display: grid;
+  justify-items: center;
+  gap: 0.5rem;
+  max-width: 24rem;
+  margin: 4rem auto;
+  padding: 0 1.5rem;
+  color: var(--muted);
+  text-align: center;
+}
+.tracked-empty strong {
+  color: var(--text);
+  font-size: 1.1rem;
+}
+@media (max-width: 760px) {
+  .tracked-app .kanban-main,
+  .tracked-main {
+    display: block;
+    overflow-y: auto;
+  }
+}

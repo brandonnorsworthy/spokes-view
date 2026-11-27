@@ -142,6 +142,18 @@ async fn stub_search(State(log): State<Log>, RawQuery(q): RawQuery, h: HeaderMap
         .into_response()
 }
 
+async fn stub_tracked(State(log): State<Log>, RawQuery(q): RawQuery, h: HeaderMap) -> Response {
+    record(&log, "/api/tracked", &q, &h);
+    let body = json!({
+        "time_zone": "America/Chicago", "today": "2026-11-27",
+        "nodes": [{"node": {"id": 1017, "title": "Epic", "tracked": true},
+                   "path": [{"id": 1, "title": "To do"}],
+                   "progress": {"done": 2, "in_progress": 1, "total": 9},
+                   "tracked_at": "2026-11-27T08:00:00Z"}]
+    });
+    ([(header::ETAG, TAG)], axum::Json(body)).into_response()
+}
+
 async fn spawn(router: Router) -> SocketAddr {
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
@@ -188,6 +200,7 @@ async fn history_spokes(log: Log) -> SocketAddr {
             .route("/api/tree", get(stub_tree))
             .route("/api/history", get(stub_history))
             .route("/api/search", get(stub_search))
+            .route("/api/tracked", get(stub_tracked))
             .fallback(|| async { json_error(StatusCode::NOT_FOUND, "no such endpoint") })
             .with_state(log),
     )
@@ -644,5 +657,39 @@ async fn search_errors() {
     let (_, v) = env.json("/api/servers/Old/search?q=abc").await;
     assert_eq!(v["code"], "too_old");
     let (_, v) = env.json("/api/servers/Dead/search?q=abc").await;
+    assert_eq!(v["code"], "unreachable");
+}
+
+#[tokio::test]
+async fn tracked_is_passed_through_and_old_servers_say_so() {
+    let env = start().await;
+    let (status, v) = env.json("/api/servers/Hist/tracked").await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(v["nodes"][0]["node"]["id"], 1017);
+    assert_eq!(v["nodes"][0]["progress"]["total"], 9);
+    assert!(
+        env.seen().contains(&"/api/tracked".to_string()),
+        "{:?}",
+        env.seen()
+    );
+
+    // It takes no parameters; anything else is refused before reaching Spokes.
+    let before = env.seen().len();
+    let (status, v) = env.json("/api/servers/Hist/tracked?root=1").await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    assert_eq!(v["code"], "bad_request");
+    assert_eq!(env.seen().len(), before);
+
+    // A Spokes older than 0.15.0 answers "no such endpoint".
+    let (status, v) = env.json("/api/servers/New/tracked").await;
+    assert_eq!(status, StatusCode::BAD_GATEWAY);
+    assert_eq!(v["code"], "tracked_unsupported");
+    assert_eq!(
+        v["error"],
+        "this Spokes server is older than 0.15.0 and has no tracked list"
+    );
+    let (_, v) = env.json("/api/servers/Old/tracked").await;
+    assert_eq!(v["code"], "too_old");
+    let (_, v) = env.json("/api/servers/Dead/tracked").await;
     assert_eq!(v["code"], "unreachable");
 }
