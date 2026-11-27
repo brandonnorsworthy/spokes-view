@@ -13,6 +13,7 @@ describe("linkActions", () => {
       "View board",
       "View backlog",
       "Show in tree",
+      "Isolate",
       "Copy ID",
       "Copy link",
     ]);
@@ -29,15 +30,23 @@ describe("linkActions", () => {
     );
   });
 
+  it("leaves out Isolate on the root and when asked", () => {
+    expect(labels(linkActions("Home", { id: 1, child_count: 3 }))).not.toContain("Isolate");
+    expect(
+      labels(linkActions("Home", { id: 96, child_count: 3 }, { isolate: false })),
+    ).not.toContain("Isolate");
+  });
+
   it("links to the board, backlog and tree of that node on that server", () => {
     const xs = linkActions("My Home", { id: 96, child_count: 3 });
     expect(hrefOf(xs, "View board")).toBe("/?server=My+Home&kanban=96");
     expect(hrefOf(xs, "View backlog")).toBe("/?server=My+Home&backlog=96");
     expect(hrefOf(xs, "Show in tree")).toBe("/?server=My+Home&node=96");
+    expect(hrefOf(xs, "Isolate")).toBe("/?server=My+Home&node=96&isolate=96");
   });
 
   it("never offers anything that changes the tree", () => {
     const xs = linkActions("Home", { id: 96, child_count: 3 });
-    for (const x of xs) expect(x.label).toMatch(/^(View|Show|Copy) /);
+    for (const x of xs) expect(x.label).toMatch(/^(View|Show|Copy|Isolate)\b/);
   });
 });

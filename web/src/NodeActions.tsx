@@ -4,7 +4,7 @@ import { ContextMenu, type MenuItem } from "./ContextMenu";
 import { spokeId } from "./format";
 import { LONG_PRESS_MS, type MenuVia } from "./Graph";
 import { Icon, type IconName } from "./Icon";
-import { kanbanUrl, treeUrl } from "./kanban";
+import { isolateUrl, kanbanUrl, treeUrl } from "./kanban";
 import { Sheet } from "./Sheet";
 
 /** One thing you can do with a node. Every action only views; none changes the tree. */
@@ -49,7 +49,7 @@ export function toast(text: string): void {
 export function linkActions(
   server: string,
   node: { id: number; child_count: number },
-  opts: { tree?: boolean } = {},
+  opts: { tree?: boolean; isolate?: boolean } = {},
 ): Action[] {
   const id = spokeId(node.id);
   return [
@@ -77,6 +77,16 @@ export function linkActions(
             hint: "Centre the tree on it",
             icon: "tree" as const,
             href: treeUrl(server, node.id),
+          },
+        ]),
+    ...(opts.isolate === false || node.child_count === 0 || node.id === 1
+      ? []
+      : [
+          {
+            label: "Isolate",
+            hint: "Only this branch, with a way back",
+            icon: "focus" as const,
+            href: isolateUrl(server, node.id),
           },
         ]),
     {

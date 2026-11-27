@@ -55,6 +55,23 @@ export function nodeFrom(search: string): number | null {
   return Number.isInteger(id) && id > 0 ? id : null;
 }
 
+/** URL parameter that names the node the tree page is isolated on. */
+export const ISOLATE_PARAM = "isolate";
+
+/** The isolated node's id from a query string; null when absent, invalid or the root (id 1). */
+export function isolateFrom(search: string): number | null {
+  const raw = new URLSearchParams(search).get(ISOLATE_PARAM);
+  if (raw === null) return null;
+  const id = Number(raw.replace(/^SPOKE-/i, ""));
+  return Number.isInteger(id) && id > 1 ? id : null;
+}
+
+/** Writes `id` into `params` as `isolate=<id>`, removed when null or the root. */
+export function withIsolate(params: URLSearchParams, id: number | null): void {
+  if (id !== null && id > 1) params.set(ISOLATE_PARAM, String(id));
+  else params.delete(ISOLATE_PARAM);
+}
+
 /** Rewrites the current URL's query in place (no history entry). */
 export function replaceQuery(update: (params: URLSearchParams) => void): void {
   const url = new URL(window.location.href);

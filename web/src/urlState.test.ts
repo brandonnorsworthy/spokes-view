@@ -1,7 +1,15 @@
 import { describe, expect, it } from "vitest";
 import { backlogUrl } from "./backlog";
-import { kanbanUrl, treeUrl } from "./kanban";
-import { filterFrom, nodeFrom, shownFrom, withFilter, withShown } from "./urlState";
+import { isolateUrl, kanbanUrl, treeUrl } from "./kanban";
+import {
+  filterFrom,
+  isolateFrom,
+  nodeFrom,
+  shownFrom,
+  withFilter,
+  withIsolate,
+  withShown,
+} from "./urlState";
 
 describe("shown in the URL", () => {
   it("round-trips and omits what is off", () => {
@@ -78,5 +86,37 @@ describe("link builders", () => {
     expect(treeUrl("Home", 1017)).toBe("/?server=Home&node=1017");
     expect(treeUrl("Home", 1)).toBe("/?server=Home");
     expect(treeUrl("Home")).toBe("/?server=Home");
+  });
+  it("isolateUrl centres and isolates a node", () => {
+    expect(isolateUrl("Home", 96)).toBe("/?server=Home&node=96&isolate=96");
+  });
+});
+
+describe("isolate in the URL", () => {
+  it("reads a valid id, with or without the SPOKE- prefix", () => {
+    expect(isolateFrom("?isolate=96")).toBe(96);
+    expect(isolateFrom("?server=Home&isolate=SPOKE-12")).toBe(12);
+  });
+  it("ignores anything absent, invalid or the root", () => {
+    for (const q of [
+      "",
+      "?isolate=",
+      "?isolate=abc",
+      "?isolate=-4",
+      "?isolate=1.5",
+      "?isolate=0",
+      "?isolate=1",
+    ])
+      expect(isolateFrom(q)).toBeNull();
+  });
+  it("writes and removes the parameter", () => {
+    const p = new URLSearchParams("server=Home");
+    withIsolate(p, 96);
+    expect(p.toString()).toBe("server=Home&isolate=96");
+    withIsolate(p, 1);
+    expect(p.toString()).toBe("server=Home");
+    withIsolate(p, 7);
+    withIsolate(p, null);
+    expect(p.toString()).toBe("server=Home");
   });
 });
