@@ -1,10 +1,11 @@
 import { useRef, type PointerEvent, type ReactElement, type MouseEvent } from "react";
+import { createPortal } from "react-dom";
 import { backlogUrl } from "./backlog";
 import { ContextMenu, type MenuItem } from "./ContextMenu";
 import { spokeId } from "./format";
 import { LONG_PRESS_MS, type MenuVia } from "./Graph";
 import { Icon, type IconName } from "./Icon";
-import { kanbanUrl, treeUrl } from "./kanban";
+import { isolateUrl, kanbanUrl, treeUrl } from "./kanban";
 import { Sheet } from "./Sheet";
 
 /** One thing you can do with a node. Every action only views; none changes the tree. */
@@ -41,7 +42,8 @@ export function toast(text: string): void {
   el.className = "toast";
   el.setAttribute("role", "status");
   el.textContent = text;
-  document.body.appendChild(el);
+  // Inside an open modal dialog (the board's details) when there is one, or it hides behind it.
+  (document.querySelector("dialog.modal[open]") ?? document.body).appendChild(el);
   window.setTimeout(() => el.remove(), 1800);
 }
 
@@ -49,7 +51,7 @@ export function toast(text: string): void {
 export function linkActions(
   server: string,
   node: { id: number; child_count: number },
-  opts: { tree?: boolean } = {},
+  opts: { tree?: boolean; isolate?: boolean } = {},
 ): Action[] {
   const id = spokeId(node.id);
   return [
@@ -77,6 +79,16 @@ export function linkActions(
             hint: "Centre the tree on it",
             icon: "tree" as const,
             href: treeUrl(server, node.id),
+          },
+        ]),
+    ...(opts.isolate === false || node.child_count === 0 || node.id === 1
+      ? []
+      : [
+          {
+            label: "Isolate",
+            hint: "Only this branch, with a way back",
+            icon: "focus" as const,
+            href: isolateUrl(server, node.id),
           },
         ]),
     {
@@ -116,8 +128,18 @@ interface Props {
   onClose: () => void;
 }
 
-/** A node's actions: a bottom sheet for touch, a menu at the pointer for a mouse or keys. */
-export function NodeActions({ via, x, y, id, title, items, onClose }: Props): ReactElement {
+/**
+ * A node's actions: a bottom sheet for touch, a menu at the pointer for a mouse or keys.
+ */
+export function NodeActions(props: Props): ReactElement {
+  // An open modal dialog (the board's details) makes everything outside it unclickable,
+  // so the actions render inside it when one is open, and on the page otherwise.
+  const host = document.querySelector<HTMLDialogElement>("dialog.modal[open]");
+  const body = <NodeActionsBody {...props} />;
+  return host ? createPortal(body, host) : body;
+}
+
+function NodeActionsBody({ via, x, y, id, title, items, onClose }: Props): ReactElement {
   if (!wantsSheet(via)) {
     return (
       <ContextMenu

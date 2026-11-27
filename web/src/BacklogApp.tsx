@@ -28,6 +28,8 @@ import {
   isEpic,
 } from "./format";
 import { AppBar } from "./AppBar";
+import { revealNode } from "./reveal";
+import { Search } from "./Search";
 import { OptGroup, Toggle } from "./ViewOptions";
 import type { MenuVia } from "./Graph";
 import { linkActions, NodeActions, useNodeMenu } from "./NodeActions";
@@ -72,7 +74,14 @@ export function BacklogApp({ server, rootId }: Props): ReactElement {
   const rows = useMemo(() => visibleRows(outline, collapsed, filter), [outline, collapsed, filter]);
   const nodesById = useMemo(() => new Map(data?.nodes.map((n) => [n.id, n])), [data]);
   const rootNode = nodesById.get(rootId);
-  const [menu, setMenu] = useState<{ id: number; x: number; y: number; via: MenuVia } | null>(null);
+  const [searching, setSearching] = useState(false);
+  const [menu, setMenu] = useState<{
+    id: number;
+    x: number;
+    y: number;
+    via: MenuVia;
+    fromDetails?: boolean;
+  } | null>(null);
   const menuNode = menu ? nodesById.get(menu.id) : undefined;
   const today = data?.today ?? "";
   const filtering = isFiltering(filter);
@@ -150,6 +159,33 @@ export function BacklogApp({ server, rootId }: Props): ReactElement {
             : undefined
         }
         title={rootNode?.title ?? spokeId(rootId)}
+        searching={searching}
+        onSearch={() => setSearching((on) => !on)}
+        extra={
+          // The same search box as the tree (on a phone, behind the Search tab). A pick
+          // stays on this page.
+          server ? (
+            <div className={`appbar-search ${searching ? "open" : ""}`}>
+              <Search
+                server={server}
+                show={show}
+                supported
+                disabled={false}
+                onPick={(hit) => {
+                  setSearching(false);
+                  // Stay on the backlog: open the branches down to the row, show it, open
+                  // its details. A node outside this backlog still opens its details here.
+                  if (outline.some((r) => r.node.id === hit.id)) {
+                    const up = new Set(hit.path.map((c) => c.id));
+                    setCollapsed((c) => new Set([...c].filter((x) => !up.has(x))));
+                    revealNode(hit.id);
+                  }
+                  openDetail(hit.id);
+                }}
+              />
+            </div>
+          ) : undefined
+        }
         status={
           data
             ? `${filtering ? `${rows.length} of ${outline.length}` : `${outline.length} items`}${
@@ -257,6 +293,7 @@ export function BacklogApp({ server, rootId }: Props): ReactElement {
           onClose={closeDetail}
           onSelect={openDetail}
           actions={(n) => <ViewLinks server={server} node={n} />}
+          onActions={(n, x, y) => setMenu({ id: n.id, x, y, via: "pointer", fromDetails: true })}
         />
       )}
       {menu && menuNode && server && (
@@ -268,7 +305,16 @@ export function BacklogApp({ server, rootId }: Props): ReactElement {
           title={menuNode.title}
           onClose={() => setMenu(null)}
           items={[
-            { label: "Show details", icon: "details", onPick: () => openDetail(menuNode.id) },
+            // The details' own ⋯ button: they are already open.
+            ...(menu.fromDetails
+              ? []
+              : [
+                  {
+                    label: "Show details",
+                    icon: "details" as const,
+                    onPick: () => openDetail(menuNode.id),
+                  },
+                ]),
             ...linkActions(server, menuNode),
           ]}
         />
@@ -302,6 +348,7 @@ function BacklogRow({
   return (
     <div
       className={`row ${n.deferred ? "deferred" : ""} ${isEpic(n) ? "epic" : ""}`}
+      data-node-id={n.id}
       data-status={n.status}
       style={{ "--depth": row.depth } as CSSProperties}
     >

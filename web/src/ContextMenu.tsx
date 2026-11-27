@@ -23,6 +23,9 @@ export function ContextMenu({ x, y, heading, items, onClose }: Props): ReactElem
   useLayoutEffect(() => {
     const el = ref.current;
     if (!el) return;
+    // The menu lives in the browser's top layer, so it opens above a modal dialog too
+    // (the board's details) instead of behind it.
+    if (!el.matches(":popover-open")) el.showPopover();
     const r = el.getBoundingClientRect();
     const nx = Math.max(4, Math.min(x, window.innerWidth - r.width - 4));
     const ny = Math.max(4, Math.min(y, window.innerHeight - r.height - 4));
@@ -65,6 +68,7 @@ export function ContextMenu({ x, y, heading, items, onClose }: Props): ReactElem
     <div
       ref={ref}
       className="context-menu"
+      popover="manual"
       role="menu"
       aria-label={heading}
       style={{ left: pos.x, top: pos.y }}

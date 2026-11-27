@@ -23,6 +23,9 @@ import {
 import { usePhone } from "./usePhone";
 import { replaceQuery } from "./urlState";
 import { AppBar } from "./AppBar";
+import { revealNode } from "./reveal";
+import { Search } from "./Search";
+import { Icon } from "./Icon";
 import { OptGroup, Segmented, Toggle } from "./ViewOptions";
 import type { MenuVia } from "./Graph";
 import { linkActions, NodeActions, useNodeMenu } from "./NodeActions";
@@ -64,7 +67,14 @@ export function KanbanApp({ server, rootId }: Props): ReactElement {
     setRequested(null);
   };
 
-  const [menu, setMenu] = useState<{ id: number; x: number; y: number; via: MenuVia } | null>(null);
+  const [searching, setSearching] = useState(false);
+  const [menu, setMenu] = useState<{
+    id: number;
+    x: number;
+    y: number;
+    via: MenuVia;
+    fromDetails?: boolean;
+  } | null>(null);
   const board = useMemo(() => (data ? buildBoard(data, show, group) : []), [data, show, group]);
   const rootNode = data?.nodes.find((n) => n.id === rootId);
   const nodesById = useMemo(() => new Map(data?.nodes.map((n) => [n.id, n])), [data]);
@@ -103,6 +113,26 @@ export function KanbanApp({ server, rootId }: Props): ReactElement {
       replaceQuery((p) => p.set(COLUMN_PARAM, key));
     }
   };
+  // A search pick stays on the board: show the card (its column, unfolded, paged in) and
+  // open its details. A node that isn't on this board still opens its details here.
+  const pick = (id: number): void => {
+    const i = board.findIndex((c) => c.cards.some((x) => x.node.id === id));
+    const col = board[i];
+    if (col) {
+      const at = col.cards.findIndex((x) => x.node.id === id);
+      setLimits((l) => ({ ...l, [col.key]: Math.max(l[col.key] ?? CARD_PAGE, at + 1) }));
+      if (phone) {
+        setRequested(col.key);
+        replaceQuery((p) => p.set(COLUMN_PARAM, col.key));
+        showColumn(i, true);
+      } else if (collapsed.has(col.key)) {
+        toggleCollapsed(col.key);
+      }
+      revealNode(id);
+    }
+    open(id);
+  };
+
   // Land on the active column without animating when the board (re)appears on a phone.
   const landed = useRef<Grouping | null>(null);
   useLayoutEffect(() => {
@@ -203,8 +233,10 @@ export function KanbanApp({ server, rootId }: Props): ReactElement {
                     type="button"
                     className="column-rail"
                     onClick={() => toggleCollapsed(col.key)}
-                    title={`Show the ${col.label} column`}
+                    title={`Expand the ${col.label} column`}
+                    aria-label={`Expand the ${col.label} column`}
                   >
+                    <Icon name="unfold" size="1.1rem" />
                     {label(col)}
                   </button>
                 ) : (
@@ -217,9 +249,9 @@ export function KanbanApp({ server, rootId }: Props): ReactElement {
                           className="column-fold"
                           onClick={() => toggleCollapsed(col.key)}
                           aria-label={`Collapse the ${col.label} column`}
-                          title="Collapse"
+                          title="Collapse column (shrink it to a thin strip)"
                         >
-                          ‹
+                          <Icon name="fold" size="1.1rem" />
                         </button>
                       </h2>
                     )}
@@ -270,6 +302,26 @@ export function KanbanApp({ server, rootId }: Props): ReactElement {
             : undefined
         }
         title={rootNode?.title ?? spokeId(rootId)}
+        searching={searching}
+        onSearch={() => setSearching((on) => !on)}
+        extra={
+          // The same search box as the tree (on a phone, behind the Search tab). A pick
+          // stays on this page.
+          server ? (
+            <div className={`appbar-search ${searching ? "open" : ""}`}>
+              <Search
+                server={server}
+                show={show}
+                supported
+                disabled={false}
+                onPick={(hit) => {
+                  setSearching(false);
+                  pick(hit.id);
+                }}
+              />
+            </div>
+          ) : undefined
+        }
         status={
           data ? `${total} items${checkedAt ? `, checked ${clock(checkedAt)}` : ""}` : undefined
         }
@@ -323,6 +375,7 @@ export function KanbanApp({ server, rootId }: Props): ReactElement {
           onClose={closeDetail}
           onSelect={open}
           actions={(n) => <ViewLinks server={server} node={n} />}
+          onActions={(n, x, y) => setMenu({ id: n.id, x, y, via: "pointer", fromDetails: true })}
         />
       )}
       {menu && menuNode && server && (
@@ -334,11 +387,16 @@ export function KanbanApp({ server, rootId }: Props): ReactElement {
           title={menuNode.title}
           onClose={() => setMenu(null)}
           items={[
-            {
-              label: "Show details",
-              icon: "details",
-              onPick: () => open(menuNode.id),
-            },
+            // The details' own ⋯ button: they are already open.
+            ...(menu.fromDetails
+              ? []
+              : [
+                  {
+                    label: "Show details",
+                    icon: "details" as const,
+                    onPick: () => open(menuNode.id),
+                  },
+                ]),
             ...linkActions(server, menuNode),
           ]}
         />
@@ -366,6 +424,7 @@ function KanbanCard({
     <button
       type="button"
       className={`card ${n.deferred ? "deferred" : ""} ${isEpic(n) ? "epic" : ""}`}
+      data-node-id={n.id}
       data-status={n.status}
       onClick={() => onOpen(n.id)}
       {...menu}

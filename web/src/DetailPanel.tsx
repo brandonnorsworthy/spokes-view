@@ -1,4 +1,7 @@
 import type { ReactElement, ReactNode } from "react";
+import { Icon } from "./Icon";
+import { usePhone } from "./usePhone";
+import { useSheetSnap, type SheetGrip } from "./useSheetSnap";
 import {
   dueState,
   formatDate,
@@ -38,9 +41,15 @@ interface DetailsProps {
   onSelect: (id: number) => void;
   /** Buttons shown under the title, for the node on show. */
   actions?: (n: ViewNode) => ReactNode;
+  /** The ⋯ button: the node's actions, opened at this point (the button's centre). */
+  onActions?: (n: ViewNode, x: number, y: number) => void;
+  /** On a phone, the sheet's drag handle and header move it between its heights. */
+  grip?: SheetGrip;
+  /** The handle pressed from the keyboard (a tap is handled by the grip). */
+  onHandle?: () => void;
 }
 
-interface PanelProps extends Omit<DetailsProps, "actions"> {
+interface PanelProps extends Omit<DetailsProps, "actions" | "grip" | "onHandle"> {
   expanded: boolean;
   onToggle: (id: number) => void;
   /** The server shown, for the links to a node's backlog and kanban pages. */
@@ -59,10 +68,20 @@ function Row({ label, children }: { label: string; children: ReactNode }): React
 /** The side panel beside the graph. */
 export function DetailPanel(props: PanelProps): ReactElement {
   const { expanded, onToggle, server, ...rest } = props;
+  const phone = usePhone();
+  const { attach, snap, grip, toggle } = useSheetSnap(phone, props.onClose);
   return (
-    <aside className="panel details" aria-label="Node details" data-covers-graph>
+    <aside
+      ref={attach}
+      className="panel details"
+      aria-label="Node details"
+      data-covers-graph
+      data-snap={phone ? snap : undefined}
+    >
       <NodeDetails
         {...rest}
+        grip={phone ? grip : undefined}
+        onHandle={toggle}
         actions={(n) => (
           <ViewLinks server={server} node={n}>
             {n.child_count > 0 && (
@@ -79,7 +98,18 @@ export function DetailPanel(props: PanelProps): ReactElement {
 
 /** Path, fields, notes and events of one node: the body of the panel and the modal. */
 export function NodeDetails(props: DetailsProps): ReactElement {
-  const { detail, fromTree, timeZone, today, onClose, onSelect, actions } = props;
+  const {
+    detail,
+    fromTree,
+    timeZone,
+    today,
+    onClose,
+    onSelect,
+    actions,
+    onActions,
+    grip,
+    onHandle,
+  } = props;
   const n: ViewNode | undefined = detail.data?.node ?? fromTree;
   const notes = detail.data?.node.notes ?? null;
   const source = detail.data?.node.source ?? null;
@@ -93,17 +123,49 @@ export function NodeDetails(props: DetailsProps): ReactElement {
 
   return (
     <>
-      <div className="panel-head">
-        <nav className="crumbs" aria-label="Path">
+      {grip && (
+        <button
+          type="button"
+          className="sheet-handle sheet-grip"
+          aria-label="Resize details"
+          onClick={(e) => {
+            // A tap is the grip's; this is the keyboard's Enter or Space.
+            if (e.detail === 0) onHandle?.();
+          }}
+          {...grip}
+        />
+      )}
+      <div className="panel-head" {...grip}>
+        <nav
+          className="crumbs"
+          aria-label="Path"
+          // One line that starts scrolled to the end, so the parent is what you see first.
+          ref={(el) => {
+            if (el) el.scrollLeft = el.scrollWidth;
+          }}
+        >
           {path.map((c) => (
             <span key={c.id}>
-              <button type="button" className="link" onClick={() => onSelect(c.id)}>
+              <button type="button" className="link" title={c.title} onClick={() => onSelect(c.id)}>
                 {c.title}
               </button>
               <span aria-hidden="true"> / </span>
             </span>
           ))}
         </nav>
+        {n && onActions && (
+          <button
+            type="button"
+            className="close more"
+            aria-label="Actions"
+            onClick={(e) => {
+              const r = e.currentTarget.getBoundingClientRect();
+              onActions(n, r.left + r.width / 2, r.bottom);
+            }}
+          >
+            <Icon name="more" size="1.25rem" />
+          </button>
+        )}
         <button type="button" className="close" onClick={onClose} aria-label="Close details">
           ×
         </button>
