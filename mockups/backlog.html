@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Backlog · Spokes View mockup</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="kit.js"></script>
+</head>
+<body>
+<div id="app"></div>
+<script>
+// Backlog for SPOKE-96 "Spokes View": full titles that wrap, at most two chips per row on a
+// phone (the rest live in details), 48px rows, big chevrons. Filters live in the sheet and
+// show as removable chips under the header.
+const tree = [
+  { id: 1017, depth: 0, open: true },
+  { id: 1019, depth: 1 }, { id: 998, depth: 1 }, { id: 1022, depth: 1 }, { id: 1035, depth: 1 }, { id: 700, depth: 1 }, { id: 979, depth: 1 },
+  { id: 148, depth: 0 }, { id: 184, depth: 0, kids: 4 }, { id: 222, depth: 0 }, { id: 236, depth: 0 }, { id: 270, depth: 0 },
+];
+const row = (r) => {
+  const n = byId[r.id];
+  const st = STATUS[n.s][1];
+  const hasKids = r.open || r.kids;
+  return `<div data-node="${n.id}" class="press flex items-start gap-1 min-h-[52px] py-2.5 pr-3 border-b border-line/50 ${n.ty === "epic" ? "bg-[rgb(var(--t-epic)/.08)]" : ""}" style="padding-left:${0.25 + r.depth * 1.25}rem">
+    <button class="w-9 h-9 -my-1 shrink-0 grid place-items-center text-muted ${hasKids ? "" : "invisible"}" aria-label="Expand">${svg(UI.chevron, `w-4 h-4 transition ${r.open ? "rotate-90" : ""}`)}</button>
+    <span class="w-2.5 h-2.5 mt-[7px] shrink-0 rounded-full bg-${st} ${n.s === "in_progress" ? "ring-4 ring-prog/20" : ""}"></span>
+    <div class="min-w-0 flex-1 pl-2">
+      <div class="text-[15px] leading-snug ${n.ty === "epic" ? "font-semibold" : ""}">${n.t}</div>
+      <div class="flex items-center gap-1.5 mt-1"><span class="font-mono text-[11px] text-muted">${n.id}</span>${typeChip(n.ty)}${refChip(n.r)}${r.kids ? `<span class="text-[11px] text-muted ml-auto">${r.kids} below</span>` : ""}</div>
+    </div></div>`;
+};
+mount({
+  active: "backlog",
+  crumb: "Development › Projects",
+  title: "Spokes View",
+  filtersExtra: `<div><span class="text-[12px] text-muted font-semibold uppercase tracking-wider">Filter</span>
+    <div class="mt-1.5 h-12 rounded-xl bg-surface2 flex items-center px-3.5 gap-2 text-muted">${svg(UI.search, "w-4 h-4")}<span>Title or SPOKE-N</span></div>
+    <div class="mt-2 grid grid-cols-2 gap-2"><div class="h-12 rounded-xl bg-surface2 px-3.5 flex items-center justify-between text-muted">Any type ${svg(UI.chevron, "w-4 h-4 rotate-90 text-muted")}</div><div class="h-12 rounded-xl bg-surface2 px-3.5 flex items-center justify-between text-muted">Any refinement ${svg(UI.chevron, "w-4 h-4 rotate-90")}</div></div></div>`,
+  body: `
+  <main class="absolute inset-0 pt-14 pb-20 overflow-y-auto no-scrollbar">
+    <div class="sticky top-0 z-10 glass border-b border-line/60 px-3 py-2 flex items-center gap-2 overflow-x-auto no-scrollbar">
+      <button data-open="filters" class="press shrink-0 h-9 px-3 rounded-full bg-accent/15 text-accent text-[13px] font-semibold flex items-center gap-1.5">${svg(UI.filter, "w-4 h-4")}Filters · 1</button>
+      <span class="shrink-0 h-9 pl-3 pr-1.5 rounded-full border border-line/70 text-[13px] flex items-center gap-1">Hide done <button class="w-6 h-6 grid place-items-center text-muted" aria-label="Remove filter">${svg(UI.close, "w-3.5 h-3.5")}</button></span>
+      <span class="shrink-0 text-[12px] text-muted ml-1">58 items</span>
+      <button class="press shrink-0 ml-auto h-9 px-3 rounded-full text-[13px] text-muted">Expand all</button>
+    </div>
+    ${tree.map(row).join("")}
+  </main>`,
+});
+</script>
+</body>
+</html>

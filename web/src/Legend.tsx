@@ -12,8 +12,18 @@ import type { Status } from "./types";
 
 const STATUSES: Status[] = ["open", "in_progress", "waiting", "done", "dropped"];
 
-export function Legend(): ReactElement {
-  const [open, setOpen] = useState(false);
+/** The key to the tree. Its open state can be held by the page (the phone opens it from the options sheet). */
+export function Legend(props: {
+  open?: boolean;
+  onToggle?: (open: boolean) => void;
+}): ReactElement {
+  const [own, setOwn] = useState(false);
+  const open = props.open ?? own;
+  const setOpen = (next: boolean | ((o: boolean) => boolean)): void => {
+    const v = typeof next === "function" ? next(open) : next;
+    setOwn(v);
+    props.onToggle?.(v);
+  };
   return (
     <div className={`legend ${open ? "open" : ""}`}>
       <button

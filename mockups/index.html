@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Spokes View · mobile-first mockups</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="kit.js"></script>
+</head>
+<body class="min-h-screen">
+<main class="max-w-2xl mx-auto p-5 pb-16">
+  <h1 class="text-[26px] font-bold tracking-tight mt-4">Spokes View, mobile-first</h1>
+  <p class="text-muted mt-1">Mockups for epic SPOKE-1017. Open on your phone; every screen is clickable. Tap a card for details, hold one for actions, use the ☰ icon top-right for view options.</p>
+  <div id="list" class="mt-6 space-y-3"></div>
+  <p class="text-[13px] text-muted mt-8">Light and dark follow your phone's setting. Sample titles come from the live tree. These are HTML + Tailwind sketches, not the app: the real build uses the existing React code and plain CSS.</p>
+</main>
+<script>
+const screens = [
+  ["board.html", "Board", "board", "One column at a time with count tabs. Opens on In progress, so it's never buried under 251 open cards. Swipe or tap to switch. Open is capped with 'Show 50 more'."],
+  ["tree.html", "Tree", "tree", "Full-bleed tree between a one-line header and the tab bar. 44px tap areas on every node. Try 'Preview: Isolate' for the isolated-branch view (SPOKE-700)."],
+  ["backlog.html", "Backlog", "backlog", "Full titles that wrap, two chips max per row, big chevrons. Filters in the sheet, shown as removable chips."],
+  ["search.html", "Search", "search", "A full-screen tab with a big field, match-mode chips, highlighted words and 'More results'."],
+  ["tracked.html", "Tracked", "tracked", "Epics tracked through MCP, with a progress bar and the next step. Tap to open the board (Release E, needs Spokes 0.15.0)."],
+  ["desktop.html", "Desktop board", "board", "The same design on a wide screen: tabs in the top bar, side-by-side columns (huge ones capped, any can collapse to a rail), details as a side panel."],
+];
+document.getElementById("list").innerHTML = screens.map(([href, t, ic, d]) => `
+  <a href="${href}" class="press flex gap-4 items-start rounded-3xl bg-surface border border-line/70 p-4 hover:border-accent/60">
+    <span class="w-12 h-12 shrink-0 rounded-2xl grid place-items-center bg-accent/15 text-accent">${svg(UI[ic], "w-6 h-6")}</span>
+    <span class="min-w-0"><span class="block font-semibold text-[16px]">${t}</span><span class="block text-[14px] text-muted leading-snug mt-0.5">${d}</span></span>
+  </a>`).join("");
+</script>
+</body>
+</html>

@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0b0d14">
+<title>Board · Spokes View mockup</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="kit.js"></script>
+</head>
+<body>
+<div id="app"></div>
+<script>
+// Board for SPOKE-4 "Projects": one column at a time on a phone. Opens on In progress
+// because it has cards; tabs show every column's count; swipe or tap to move.
+const COLS = [
+  { key: "open", label: "Open", tone: "open", count: 251 },
+  { key: "in_progress", label: "In progress", tone: "prog", count: 5 },
+  { key: "waiting", label: "Waiting", tone: "wait", count: 2 },
+];
+const cardsFor = (k) => DATA.filter((n) => n.s === k);
+const waiting = [
+  { ...byId[151], s: "waiting", id: 151 },
+  { ...byId[37], s: "waiting", id: 37 },
+];
+const colBody = (c) => {
+  const list = c.key === "waiting" ? waiting : cardsFor(c.key);
+  const more = c.key === "open" ? `<button class="press w-full h-12 rounded-2xl border border-dashed border-line text-muted text-[14px] font-medium">Show 50 more · 236 left</button>` : "";
+  return `<div class="col snap-start shrink-0 w-full h-full overflow-y-auto px-3 pt-3 pb-28 space-y-2.5 no-scrollbar" data-col="${c.key}">
+    ${list.map((n) => card(n)).join("")}${more}</div>`;
+};
+
+mount({
+  active: "board",
+  crumb: "Personal › Development",
+  title: "Projects",
+  filtersExtra: `<div><span class="text-[12px] text-muted font-semibold uppercase tracking-wider">Group columns by</span>
+    <div class="mt-1.5 grid grid-cols-2 p-1 rounded-xl bg-surface2 text-[14px] font-medium">
+      <button class="h-10 rounded-lg bg-surface shadow">Status</button><button class="h-10 rounded-lg text-muted">Refinement</button></div></div>`,
+  body: `
+  <div class="absolute inset-x-0 top-14 bottom-0 flex flex-col" style="margin-top:env(safe-area-inset-top)">
+    <div class="glass z-10 border-b border-line/60">
+      <div id="tabs" class="flex gap-1.5 px-3 py-2.5 overflow-x-auto no-scrollbar">
+        ${COLS.map((c, i) => `<button data-tab="${i}" class="tab press shrink-0 h-10 pl-3 pr-2 rounded-full flex items-center gap-2 text-[14px] font-medium border border-line/70">
+          <span class="w-2 h-2 rounded-full bg-${c.tone}"></span>${c.label}
+          <span class="min-w-[1.75rem] h-6 px-1.5 rounded-full grid place-items-center text-[12px] font-semibold bg-${c.tone}/15 text-${c.tone}">${c.count}</span></button>`).join("")}
+      </div>
+    </div>
+    <div id="cols" class="flex-1 flex overflow-x-auto snap-x snap-mandatory no-scrollbar">${COLS.map(colBody).join("")}</div>
+  </div>`,
+});
+
+const cols = document.getElementById("cols");
+const tabs = [...document.querySelectorAll(".tab")];
+const setActive = (i) => {
+  tabs.forEach((t, j) => {
+    t.classList.toggle("bg-ink", i === j); t.classList.toggle("text-bg", i === j); t.classList.toggle("border-transparent", i === j);
+  });
+  tabs[i].scrollIntoView({ inline: "nearest", block: "nearest", behavior: "smooth" });
+};
+tabs.forEach((t, i) => t.addEventListener("click", () => cols.scrollTo({ left: i * cols.clientWidth, behavior: "smooth" })));
+cols.addEventListener("scroll", () => setActive(Math.round(cols.scrollLeft / cols.clientWidth)), { passive: true });
+// Open on In progress (it has cards), without animating.
+setActive(1);
+requestAnimationFrame(() => { cols.scrollLeft = cols.clientWidth; });
+</script>
+</body>
+</html>

@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Tree · Spokes View mockup</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="kit.js"></script>
+</head>
+<body>
+<div id="app"></div>
+<script>
+// The radial tree, full-bleed between a one-line header and the tab bar. Nodes are drawn
+// small but each has an invisible 44px hit circle. Tap = details, long-press = actions.
+// "Isolate" (from the action sheet) is previewed with the toggle at the bottom-left.
+const W = 390, H = 700, cx = W / 2, cy = H / 2 - 20;
+const pol = (r, deg) => [cx + r * Math.cos((deg * Math.PI) / 180), cy + r * Math.sin((deg * Math.PI) / 180)];
+const hex = (x, y, r) => [0, 60, 120, 180, 240, 300].map((d) => [x + r * Math.cos((d * Math.PI) / 180), y + r * Math.sin((d * Math.PI) / 180)].join(",")).join(" ");
+function radial(center, groups) {
+  let edges = "", nodes = "", labels = "";
+  groups.forEach((g) => {
+    const [x, y] = pol(80, g.a);
+    edges += `<path d="M${cx} ${cy}L${x} ${y}" class="stroke-line" stroke-width="1.5"/>`;
+    nodes += `<g class="cursor-pointer"><circle cx="${x}" cy="${y}" r="22" fill="transparent"/><rect x="${x - 8}" y="${y - 8}" width="16" height="16" rx="4" class="fill-surface2 stroke-accent" stroke-width="1.5"/></g>`;
+    labels += `<text x="${x}" y="${y + 25}" text-anchor="middle" class="fill-ink text-[12px] font-medium" paint-order="stroke" stroke="rgb(var(--bg))" stroke-width="4">${g.label}</text>`;
+    const n = g.kids.length;
+    g.kids.forEach((id, i) => {
+      const ang = g.a + (i - (n - 1) / 2) * (g.spread || 17);
+      const [kx, ky] = pol(150, ang);
+      const node = byId[id];
+      const tone = { open: "open", in_progress: "prog" }[node.s];
+      edges += `<path d="M${x} ${y}Q${pol(118, ang)[0]} ${pol(118, ang)[1]} ${kx} ${ky}" fill="none" class="stroke-line" stroke-width="1.2"/>`;
+      nodes += `<g data-node="${id}" class="cursor-pointer"><circle cx="${kx}" cy="${ky}" r="22" fill="transparent"/>
+        ${node.ty === "epic" ? `<polygon points="${hex(kx, ky, 10)}" class="fill-${tone}" stroke="rgb(var(--t-epic))" stroke-width="2.5"/>` : `<circle cx="${kx}" cy="${ky}" r="7" class="fill-${tone}"/>`}
+        ${node.claim ? `<circle cx="${kx}" cy="${ky}" r="12" fill="none" class="stroke-prog" stroke-width="1.5" stroke-dasharray="3 3"/>` : ""}</g>`;
+    });
+  });
+  return `<svg viewBox="0 0 ${W} ${H}" class="w-full h-full touch-none select-none">
+    <circle cx="${cx}" cy="${cy}" r="80" fill="none" class="stroke-line/60" stroke-dasharray="2 5"/>
+    <circle cx="${cx}" cy="${cy}" r="150" fill="none" class="stroke-line/60" stroke-dasharray="2 5"/>
+    ${edges}${nodes}
+    <circle cx="${cx}" cy="${cy}" r="13" class="fill-accent"/><circle cx="${cx}" cy="${cy}" r="19" fill="none" class="stroke-accent/40" stroke-width="6"/>
+    ${labels}<text x="${cx}" y="${cy + 38}" text-anchor="middle" class="fill-ink text-[13px] font-semibold" paint-order="stroke" stroke="rgb(var(--bg))" stroke-width="4">${center}</text></svg>`;
+}
+const WHOLE = radial("To do", [
+  { label: "Work", a: -90, kids: [] },
+  { label: "Development", a: 0, kids: [1017, 1019, 954, 1008, 1009, 37, 148], spread: 15 },
+  { label: "Homelab", a: 90, kids: [151, 179] },
+  { label: "Learning", a: 155, kids: [] },
+  { label: "Hobbies", a: 210, kids: [] },
+]);
+const ISOLATED = radial("Development", [
+  { label: "Spokes View", a: -60, kids: [1017, 1019, 979, 998] },
+  { label: "Compat layer", a: 60, kids: [954, 1008, 1009] },
+  { label: "Spokes", a: 180, kids: [37, 148, 54, 184] },
+]);
+const svgTree = WHOLE;
+
+mount({
+  active: "tree",
+  title: "To do",
+  crumb: "Home · 284 open",
+  filtersExtra: `<div class="grid grid-cols-2 gap-2"><button class="press h-12 rounded-xl bg-surface2 font-medium text-[14px]">Expand all</button><button class="press h-12 rounded-xl bg-surface2 font-medium text-[14px]">Collapse all</button></div>`,
+  body: `
+  <main id="stage" class="absolute inset-0 pt-14 pb-20">${svgTree}</main>
+  <div id="iso" class="hidden absolute inset-x-0 top-14 bottom-[4.5rem] z-10 pointer-events-none rounded-[28px] border-[3px] border-wait/80 m-1.5"></div>
+  <div id="isobar" class="hidden absolute top-[4.25rem] inset-x-0 z-20 justify-center">
+    <div class="glass pointer-events-auto rounded-full border border-wait/60 pl-4 pr-1.5 h-11 flex items-center gap-2 text-[13px] shadow-lg">
+      <span class="text-wait font-semibold">Isolated</span><span class="truncate max-w-[11rem]">Development</span>
+      <button id="isoexit" class="press w-8 h-8 rounded-full bg-wait/20 text-wait grid place-items-center" aria-label="Exit isolated view">${svg(UI.close, "w-4 h-4")}</button></div></div>
+  <div class="absolute right-3 bottom-24 z-10 flex flex-col gap-2">
+    ${[["Zoom in", '<path d="M8 3v10M3 8h10"/>'], ["Zoom out", '<path d="M3 8h10"/>'], ["Fit", '<path d="M2 6V2h4M10 2h4v4M14 10v4h-4M6 14H2v-4"/>']].map(([l, p]) => `<button class="glass press w-11 h-11 rounded-2xl border border-line/60 grid place-items-center shadow" aria-label="${l}">${svg(p, "w-5 h-5")}</button>`).join("")}
+  </div>
+  <button id="isotoggle" class="glass press absolute left-3 bottom-24 z-10 h-11 px-4 rounded-2xl border border-line/60 text-[13px] font-medium shadow">Preview: Isolate</button>
+  <div class="absolute inset-x-0 top-[4.4rem] z-0 text-center text-[12px] text-muted pointer-events-none">Tap for details · hold for actions · pinch to zoom</div>`,
+});
+const iso = (on) => {
+  document.getElementById("stage").innerHTML = on ? ISOLATED : WHOLE;
+  document.getElementById("iso").classList.toggle("hidden", !on);
+  const bar = document.getElementById("isobar"); bar.classList.toggle("hidden", !on); bar.classList.toggle("flex", on);
+};
+document.getElementById("isotoggle").onclick = () => iso(document.getElementById("iso").classList.contains("hidden"));
+document.getElementById("isoexit").onclick = () => iso(false);
+</script>
+</body>
+</html>

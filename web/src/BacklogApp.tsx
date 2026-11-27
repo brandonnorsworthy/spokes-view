@@ -3,6 +3,7 @@ import {
   useEffect,
   useMemo,
   useState,
+  type CSSProperties,
   type ReactElement,
   type ReactNode,
 } from "react";
@@ -26,9 +27,13 @@ import {
   TYPE_LABEL,
   isEpic,
 } from "./format";
-import { kanbanUrl } from "./kanban";
+import { AppBar } from "./AppBar";
+import { OptGroup, Toggle } from "./ViewOptions";
+import type { MenuVia } from "./Graph";
+import { linkActions, NodeActions, useNodeMenu } from "./NodeActions";
 import { NodeModal } from "./NodeModal";
 import { TypeRefinementChips } from "./TypeRefinementChips";
+import { filterFrom, replaceQuery, withFilter } from "./urlState";
 import { useSubtree } from "./useSubtree";
 import { ViewLinks } from "./ViewLinks";
 
@@ -53,12 +58,22 @@ export function BacklogApp({ server, rootId }: Props): ReactElement {
     closeDetail,
   } = useSubtree(server, rootId);
   const [collapsed, setCollapsed] = useState<ReadonlySet<number>>(new Set());
-  const [filter, setFilter] = useState<RowFilter>(NO_FILTER);
+  const [filter, setFilter] = useState<RowFilter>(() => ({
+    ...NO_FILTER,
+    ...filterFrom(window.location.search),
+  }));
+  const changeFilter = (patch: Partial<RowFilter>): void => {
+    const next = { ...filter, ...patch };
+    setFilter(next);
+    replaceQuery((p) => withFilter(p, next));
+  };
 
   const outline = useMemo(() => (data ? buildOutline(data) : []), [data]);
   const rows = useMemo(() => visibleRows(outline, collapsed, filter), [outline, collapsed, filter]);
   const nodesById = useMemo(() => new Map(data?.nodes.map((n) => [n.id, n])), [data]);
   const rootNode = nodesById.get(rootId);
+  const [menu, setMenu] = useState<{ id: number; x: number; y: number; via: MenuVia } | null>(null);
+  const menuNode = menu ? nodesById.get(menu.id) : undefined;
   const today = data?.today ?? "";
   const filtering = isFiltering(filter);
 
@@ -112,6 +127,7 @@ export function BacklogApp({ server, rootId }: Props): ReactElement {
               canToggle={r.hasRows && !filtering}
               onToggle={toggle}
               onOpen={openDetail}
+              onMenu={(x, y, via) => setMenu({ id: r.node.id, x, y, via })}
             />
           </li>
         ))}
@@ -121,101 +137,110 @@ export function BacklogApp({ server, rootId }: Props): ReactElement {
 
   return (
     <div className="app kanban-app backlog-app">
-      <header className="bar">
-        <h1>
-          <span className="logo" aria-hidden="true" />
-          <a className="home" href={server ? `/?server=${encodeURIComponent(server)}` : "/"}>
-            Spokes view
-          </a>
-          <span className="muted">/</span>
-          <span className="board-title">
-            {data && data.path.length > 0 && (
-              <span className="board-path">{data.path.map((c) => c.title).join(" / ")} /</span>
-            )}
-            <strong>{rootNode?.title ?? spokeId(rootId)}</strong>
-          </span>
-        </h1>
-        {server && <span className="chip">{server}</span>}
-        {server && (
-          <a className="btn" href={kanbanUrl(server, rootId)}>
-            Kanban
-          </a>
-        )}
-        <label className="filter">
-          <span className="sr-only">Filter</span>
-          <input
-            type="search"
-            placeholder="Filter by title or SPOKE-N"
-            value={filter.text}
-            onChange={(e) => setFilter((f) => ({ ...f, text: e.target.value }))}
-          />
-        </label>
-        <label className="filter">
-          <span className="sr-only">Type</span>
-          <select
-            value={filter.type}
-            onChange={(e) =>
-              setFilter((f) => ({ ...f, type: e.target.value as RowFilter["type"] }))
-            }
-          >
-            <option value="any">Any type</option>
-            {NODE_TYPES.map((t) => (
-              <option key={t} value={t}>
-                {TYPE_LABEL[t]}
-              </option>
-            ))}
-            <option value="none">No type</option>
-          </select>
-        </label>
-        <label className="filter">
-          <span className="sr-only">Refinement</span>
-          <select
-            value={filter.refinement}
-            onChange={(e) =>
-              setFilter((f) => ({ ...f, refinement: e.target.value as RowFilter["refinement"] }))
-            }
-          >
-            <option value="any">Any refinement</option>
-            {REFINEMENTS.map((st) => (
-              <option key={st} value={st}>
-                {REFINEMENT_LABEL[st]}
-              </option>
-            ))}
-            <option value="none">No refinement</option>
-          </select>
-        </label>
-        <label className="check">
-          <input type="checkbox" checked={show.done} onChange={() => toggleShown("done")} />
-          Show done
-        </label>
-        <label className="check">
-          <input type="checkbox" checked={show.dropped} onChange={() => toggleShown("dropped")} />
-          Show dropped
-        </label>
-        <button
-          type="button"
-          className="btn"
-          onClick={() => setCollapsed(new Set())}
-          disabled={collapsed.size === 0 || filtering}
-        >
-          Expand all
-        </button>
-        <button type="button" className="btn" onClick={collapseAll} disabled={filtering || !data}>
-          Collapse all
-        </button>
-        <button
-          type="button"
-          className="btn"
-          onClick={() => void refresh()}
-          disabled={refreshing || !data}
-        >
-          {refreshing ? "Refreshing…" : "Refresh"}
-        </button>
-        <span className="updated" aria-live="polite">
-          {data && (filtering ? `${rows.length} of ${outline.length}` : `${outline.length} items`)}
-          {checkedAt && ` · checked ${clock(checkedAt)}`}
-        </span>
-      </header>
+      <AppBar
+        server={server}
+        tab="backlog"
+        nodeId={rootId}
+        crumb={
+          data && data.path.length > 0
+            ? data.path
+                .slice(-2)
+                .map((c) => c.title)
+                .join(" › ")
+            : undefined
+        }
+        title={rootNode?.title ?? spokeId(rootId)}
+        status={
+          data
+            ? `${filtering ? `${rows.length} of ${outline.length}` : `${outline.length} items`}${
+                checkedAt ? `, checked ${clock(checkedAt)}` : ""
+              }`
+            : undefined
+        }
+        options={
+          <>
+            <OptGroup label="Filter">
+              <label className="filter">
+                <span className="sr-only">Filter</span>
+                <input
+                  type="search"
+                  placeholder="Filter by title or SPOKE-N"
+                  value={filter.text}
+                  onChange={(e) => changeFilter({ text: e.target.value })}
+                />
+              </label>
+            </OptGroup>
+            <OptGroup layout="grid2">
+              <label className="filter">
+                <span className="sr-only">Type</span>
+                <select
+                  value={filter.type}
+                  onChange={(e) => changeFilter({ type: e.target.value as RowFilter["type"] })}
+                >
+                  <option value="any">Any type</option>
+                  {NODE_TYPES.map((t) => (
+                    <option key={t} value={t}>
+                      {TYPE_LABEL[t]}
+                    </option>
+                  ))}
+                  <option value="none">No type</option>
+                </select>
+              </label>
+              <label className="filter">
+                <span className="sr-only">Refinement</span>
+                <select
+                  value={filter.refinement}
+                  onChange={(e) =>
+                    changeFilter({ refinement: e.target.value as RowFilter["refinement"] })
+                  }
+                >
+                  <option value="any">Any refinement</option>
+                  {REFINEMENTS.map((st) => (
+                    <option key={st} value={st}>
+                      {REFINEMENT_LABEL[st]}
+                    </option>
+                  ))}
+                  <option value="none">No refinement</option>
+                </select>
+              </label>
+            </OptGroup>
+            <OptGroup label="Show" layout="list">
+              <Toggle label="Done tasks" checked={show.done} onChange={() => toggleShown("done")} />
+              <Toggle
+                label="Dropped tasks"
+                checked={show.dropped}
+                onChange={() => toggleShown("dropped")}
+              />
+            </OptGroup>
+            <OptGroup layout="grid3">
+              <button
+                type="button"
+                className="btn"
+                onClick={() => setCollapsed(new Set())}
+                disabled={collapsed.size === 0 || filtering}
+              >
+                Expand all
+              </button>
+              <button
+                type="button"
+                className="btn"
+                onClick={collapseAll}
+                disabled={filtering || !data}
+              >
+                Collapse all
+              </button>
+              <button
+                type="button"
+                className="btn"
+                onClick={() => void refresh()}
+                disabled={refreshing || !data}
+              >
+                {refreshing ? "Refreshing…" : "Refresh"}
+              </button>
+            </OptGroup>
+          </>
+        }
+      />
       {(refreshError ?? data?.truncated) && (
         <div className={`notice ${refreshError ? "warn" : ""}`} role="status">
           {refreshError ??
@@ -234,6 +259,20 @@ export function BacklogApp({ server, rootId }: Props): ReactElement {
           actions={(n) => <ViewLinks server={server} node={n} />}
         />
       )}
+      {menu && menuNode && server && (
+        <NodeActions
+          via={menu.via}
+          x={menu.x}
+          y={menu.y}
+          id={menuNode.id}
+          title={menuNode.title}
+          onClose={() => setMenu(null)}
+          items={[
+            { label: "Show details", icon: "details", onPick: () => openDetail(menuNode.id) },
+            ...linkActions(server, menuNode),
+          ]}
+        />
+      )}
     </div>
   );
 }
@@ -245,6 +284,7 @@ function BacklogRow({
   canToggle,
   onToggle,
   onOpen,
+  onMenu,
 }: {
   row: Row;
   today: string;
@@ -252,8 +292,10 @@ function BacklogRow({
   canToggle: boolean;
   onToggle: (id: number) => void;
   onOpen: (id: number) => void;
+  onMenu: (x: number, y: number, via: MenuVia) => void;
 }): ReactElement {
   const n = row.node;
+  const menu = useNodeMenu(onMenu);
   const ms = markers(n, today);
   const prio = n.effective_priority;
   const due = dueText(n, today);
@@ -261,7 +303,7 @@ function BacklogRow({
     <div
       className={`row ${n.deferred ? "deferred" : ""} ${isEpic(n) ? "epic" : ""}`}
       data-status={n.status}
-      style={{ paddingLeft: `${row.depth * 1.25 + 0.4}rem` }}
+      style={{ "--depth": row.depth } as CSSProperties}
     >
       {canToggle ? (
         <button
@@ -276,7 +318,7 @@ function BacklogRow({
       ) : (
         <span className="twisty" aria-hidden="true" />
       )}
-      <button type="button" className="row-main" onClick={() => onOpen(n.id)}>
+      <button type="button" className="row-main" onClick={() => onOpen(n.id)} {...menu}>
         <span
           className={`status-dot s-${n.status}`}
           title={STATUS_LABEL[n.status]}

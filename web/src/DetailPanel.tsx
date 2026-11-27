@@ -60,7 +60,7 @@ function Row({ label, children }: { label: string; children: ReactNode }): React
 export function DetailPanel(props: PanelProps): ReactElement {
   const { expanded, onToggle, server, ...rest } = props;
   return (
-    <aside className="panel details" aria-label="Node details">
+    <aside className="panel details" aria-label="Node details" data-covers-graph>
       <NodeDetails
         {...rest}
         actions={(n) => (
@@ -119,7 +119,7 @@ export function NodeDetails(props: DetailsProps): ReactElement {
           <p className="ids">
             <span className="mono">{spokeId(n.id)}</span> · {n.kind}
             {n.ordered ? " · ordered steps" : ""} ·{" "}
-            <span className={`status-text s-${n.status}`}>{STATUS_LABEL[n.status]}</span>
+            <span className={`chip status-chip s-${n.status}`}>{STATUS_LABEL[n.status]}</span>
           </p>
           {actions?.(n)}
           {detail.error && <p className="warn">{detail.error}</p>}

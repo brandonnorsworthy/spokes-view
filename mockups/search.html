@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Search · Spokes View mockup</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="kit.js"></script>
+</head>
+<body>
+<div id="app"></div>
+<script>
+// Search is a full-screen tab: the field sits above the keyboard area, results are big rows
+// with the matched words as chips, and recent searches show before you type.
+const hits = [
+  { id: 1022, m: ["kanban", "mobile"] }, { id: 1017, m: ["mobile"] }, { id: 998, m: ["kanban"] },
+  { id: 979, m: ["kanban", "phone"] }, { id: 1035, m: ["board"] },
+];
+const row = (h) => {
+  const n = byId[h.id];
+  return `<div data-node="${n.id}" class="press flex gap-3 px-4 py-3 border-b border-line/50">
+    <span class="w-2.5 h-2.5 mt-1.5 rounded-full shrink-0 bg-${STATUS[n.s][1]}"></span>
+    <div class="min-w-0 flex-1"><div class="text-[11px] text-muted truncate">${n.path}</div>
+      <div class="text-[15px] leading-snug font-medium">${n.t.replace(/(kanban|mobile|phone|board)/gi, '<mark class="bg-accent/20 text-ink rounded px-0.5">$1</mark>')}</div>
+      <div class="flex gap-1.5 mt-1.5 items-center"><span class="font-mono text-[11px] text-muted">${n.id}</span>${typeChip(n.ty)}${h.m.map((w) => `<span class="text-[11px] px-1.5 h-5 inline-flex items-center rounded-md border border-line text-muted">${w}</span>`).join("")}</div></div></div>`;
+};
+mount({
+  active: "search",
+  title: "Search",
+  crumb: "Home · names, aliases, notes, SPOKE-N",
+  body: `
+  <main class="absolute inset-0 pt-14 pb-20 flex flex-col">
+    <div class="px-3 pt-3 pb-2">
+      <div class="h-12 rounded-2xl bg-surface border-2 border-accent flex items-center px-3.5 gap-2.5 shadow-[0_0_0_4px_rgb(var(--accent)/.12)]">
+        ${svg(UI.search, "w-5 h-5 text-accent")}<span class="flex-1 text-[16px]">mobile kanban<span class="inline-block w-0.5 h-5 bg-accent align-middle ml-0.5 animate-pulse"></span></span>
+        <button class="w-8 h-8 rounded-full bg-surface2 grid place-items-center text-muted" aria-label="Clear">${svg(UI.close, "w-4 h-4")}</button></div>
+      <div class="flex gap-2 mt-2 overflow-x-auto no-scrollbar text-[13px]">
+        <span class="shrink-0 h-8 px-3 rounded-full bg-ink text-bg font-medium inline-flex items-center">Best</span>
+        <span class="shrink-0 h-8 px-3 rounded-full border border-line/70 inline-flex items-center">Any word</span>
+        <span class="shrink-0 h-8 px-3 rounded-full border border-line/70 inline-flex items-center">Every word</span>
+        <span class="shrink-0 h-8 px-3 rounded-full border border-line/70 inline-flex items-center">Include done</span></div>
+    </div>
+    <div class="text-[12px] text-muted px-4 py-1.5">5 matches · tap to open · hold for actions</div>
+    <div class="flex-1 overflow-y-auto no-scrollbar">${hits.map(row).join("")}
+      <button class="press w-[calc(100%-2rem)] mx-4 my-4 h-12 rounded-2xl border border-dashed border-line text-muted text-[14px] font-medium">More results · 12 weaker matches</button></div>
+  </main>`,
+});
+</script>
+</body>
+</html>

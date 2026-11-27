@@ -20,7 +20,10 @@ The finished product:
 - **Live enough:** a refresh button and a cheap automatic refresh (ETag/304) that keeps the view, expanded branches and selection.
 - **Replay:** play a branch's (or the whole tree's) history from its first event, watching it grow, move, get claimed and finish, with each change glowing where it happened.
 - **Find anything:** type part of a name (typos, aliases and words from the notes count) and jump to the node, wherever it is in the tree; filter by status, priority, due date and claims; link straight to a node.
-- **Later:** editing from the UI, authentication, and viewing other trees with the same shape (such as a future Preferences MCP).
+- **Mobile-first:** designed for the phone first, with desktop as the wide version of the same design. Every action works by touch: a bottom tab bar (Tree, Board, Backlog, Search, Tracked), one action sheet for nodes (long-press, right-click or the ⋯ button), boards with one column at a time and a tab per column on a phone, details in a draggable bottom sheet, pinch and pan on the tree, and filters kept in the URL.
+- **Tracked:** nodes marked tracked through MCP (Spokes 0.15.0+) are listed with their progress, one tap from each board.
+- **Always read-only:** the viewer never changes the tree. Every edit goes through Spokes' MCP tools.
+- **Later:** authentication, and viewing other trees with the same shape (such as a future Preferences MCP).
 
 It is for one person and the agents working for him, on a home network.
 
@@ -28,10 +31,10 @@ It is for one person and the agents working for him, on a home network.
 
 | Phase | Scope | Status |
 | --- | --- | --- |
-| **Phase 0, read-only viewer** | One Rust service serving the page and proxying the Spokes read API (0.2.0+); server list from the environment; radial graph with lazy branches, pan/zoom/fit, node appearance and legend, detail panel with notes and events, "Show done" and "Show dropped" toggles (both off by default, so only open tasks are drawn; `0.4.0`, needs Spokes 0.6.0), refresh and 30-second auto-refresh with 304s, server picker (URL + localStorage), clear loading/empty/unreachable/too-old states, phone layout; Docker image, CI, CodeQL, release to GHCR | **Done** (deployed to the homelab 2026-11-15 as `0.1.0`) |
+| **Phase 0, read-only viewer** | One Rust service serving the page and proxying the Spokes read API (0.2.0+); server list from the environment; radial graph with lazy branches, pan/zoom/fit, node appearance and legend, detail panel with notes and events, "Show done" and "Show dropped" toggles (both off by default, so only open tasks are drawn; `0.4.0`, needs Spokes 0.6.0), refresh and 30-second auto-refresh with 304s, server picker (URL + localStorage), clear loading/empty/unreachable/too-old states, a basic phone layout (the desktop design narrowed; replaced by the mobile-first phase); Docker image, CI, CodeQL, release to GHCR | **Done** (deployed to the homelab 2026-11-15 as `0.1.0`) |
 | **Replay** | Replay a subtree's history from Spokes 0.4.0's `/api/history`: play/pause, step, 1×/4×/16×, date scrubber, caption per step; changes glow (node halo and lit branch, coloured by kind, with a key); full blur glow at 1× and when paused, optional at higher speeds; the view follows the growing tree; disabled with a message against Spokes older than 0.4.0 | **Done** (`0.2.0`) |
 | Phase 1, find things | Search and filter (by title, status, priority, due, claimed); jump to a node; deep links to a node | **In progress** (**current**): search and jump to a node done in `0.3.0` (needs Spokes 0.5.0); hiding done and dropped nodes behind separate "Show done" and "Show dropped" toggles done in `0.4.0` (needs Spokes 0.6.0); search by ID, matched-keyword chips, "More results" paging and the automatic "Show done" / "Show dropped" on picking a hidden hit done in `0.9.0` (ID search and chips need Spokes 0.11.0, "More results" 0.14.0; older ones still search); other filters and deep links not started |
-| Phase 2, edit from the UI | Status changes, add, move, focus, answer questions, through Spokes' write path | Not started |
+| Phase 2, mobile-first (epic SPOKE-1017) | Mobile-first redesign in releases: `0.10.0` tab bar, action sheet, visual base, filters in the URL; `0.11.0` boards on a phone; `0.12.0` details sheet, touch gestures, Isolate view; `0.13.0` Backlog, Search and Replay on a phone; `0.14.0` Tracked tab (needs Spokes 0.15.0). Editing from the UI was dropped on 2026-11-26: the viewer stays read-only | **In progress** (design) |
 | Phase 3, access | Authentication, so it can be reached beyond the LAN | Not started |
 | Phase 4, other trees | View other trees served with the same API shape (e.g. a Preferences MCP) | Not started |
 
