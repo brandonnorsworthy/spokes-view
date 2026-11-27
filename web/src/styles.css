@@ -2963,6 +2963,7 @@ dialog.sheet-layer:focus {
     position: fixed;
     left: 0;
     right: 0;
+    width: auto;
     top: calc(var(--bar-h) + env(safe-area-inset-top) + 4.25rem);
     bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom));
     max-height: none;
