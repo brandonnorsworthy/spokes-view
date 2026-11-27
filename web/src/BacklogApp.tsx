@@ -27,7 +27,8 @@ import {
   TYPE_LABEL,
   isEpic,
 } from "./format";
-import { AppBar } from "./AppBar";
+import { AppBar, OPEN_OPTIONS } from "./AppBar";
+import { Icon } from "./Icon";
 import { revealNode } from "./reveal";
 import { Search } from "./Search";
 import { OptGroup, Toggle } from "./ViewOptions";
@@ -283,7 +284,22 @@ export function BacklogApp({ server, rootId }: Props): ReactElement {
             "Large branch: the list shows only the nodes Spokes would return in one slice."}
         </div>
       )}
-      <main className="main kanban-main">{body}</main>
+      <main className="main kanban-main">
+        <FilterChips
+          filter={filter}
+          show={show}
+          counts={
+            data
+              ? filtering
+                ? `${rows.length} of ${outline.length}`
+                : `${outline.length} items`
+              : ""
+          }
+          onClear={(patch) => changeFilter(patch)}
+          onShown={toggleShown}
+        />
+        {body}
+      </main>
       {detail && server && (
         <NodeModal
           detail={detail}
@@ -411,6 +427,64 @@ function Message({
     <div className={`message ${error ? "error" : ""}`} role={error ? "alert" : "status"}>
       <h2>{title}</h2>
       {children && <p>{children}</p>}
+    </div>
+  );
+}
+
+/**
+ * Phones: the backlog's active filters as chips under the header (the controls live in the
+ * options sheet), each with a ✕ to clear it, and a Filters button that opens the sheet.
+ */
+function FilterChips({
+  filter,
+  show,
+  counts,
+  onClear,
+  onShown,
+}: {
+  filter: RowFilter;
+  show: { done: boolean; dropped: boolean };
+  counts: string;
+  onClear: (patch: Partial<RowFilter>) => void;
+  onShown: (which: "done" | "dropped") => void;
+}): ReactElement {
+  const chips: { key: string; label: string; clear: () => void }[] = [];
+  if (filter.text)
+    chips.push({ key: "q", label: `“${filter.text}”`, clear: () => onClear({ text: "" }) });
+  if (filter.type !== "any")
+    chips.push({
+      key: "type",
+      label: filter.type === "none" ? "No type" : TYPE_LABEL[filter.type],
+      clear: () => onClear({ type: "any" }),
+    });
+  if (filter.refinement !== "any")
+    chips.push({
+      key: "ref",
+      label: filter.refinement === "none" ? "No refinement" : REFINEMENT_LABEL[filter.refinement],
+      clear: () => onClear({ refinement: "any" }),
+    });
+  if (show.done) chips.push({ key: "done", label: "Done shown", clear: () => onShown("done") });
+  if (show.dropped)
+    chips.push({ key: "dropped", label: "Dropped shown", clear: () => onShown("dropped") });
+  return (
+    <div className="filter-chips" role="toolbar" aria-label="Active filters">
+      <button
+        type="button"
+        className={`filter-open ${chips.length ? "on" : ""}`}
+        onClick={() => window.dispatchEvent(new Event(OPEN_OPTIONS))}
+      >
+        <Icon name="options" />
+        Filters{chips.length ? ` · ${chips.length}` : ""}
+      </button>
+      {chips.map((c) => (
+        <span key={c.key} className="filter-chip">
+          {c.label}
+          <button type="button" aria-label={`Clear ${c.label}`} onClick={c.clear}>
+            <Icon name="close" size="0.9rem" />
+          </button>
+        </span>
+      ))}
+      <span className="filter-count">{counts}</span>
     </div>
   );
 }

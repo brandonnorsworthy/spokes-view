@@ -30,6 +30,9 @@ interface Props {
   searching?: boolean;
 }
 
+/** Dispatch this on `window` to open the view-options sheet (phones). */
+export const OPEN_OPTIONS = "spokes-view:open-options";
+
 const TABS: [Tab, string, IconName][] = [
   ["tree", "Tree", "tree"],
   ["board", "Board", "board"],
@@ -55,6 +58,13 @@ export function AppBar({
 }: Props): ReactElement {
   const [open, setOpen] = useState(false);
   const phone = usePhone();
+
+  // Other parts of the page (the backlog's "Filters" chip) can open the options sheet.
+  useEffect(() => {
+    const show = () => setOpen(true);
+    window.addEventListener(OPEN_OPTIONS, show);
+    return () => window.removeEventListener(OPEN_OPTIONS, show);
+  }, []);
 
   useEffect(() => {
     if (!open) return;

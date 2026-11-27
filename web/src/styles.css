@@ -2881,3 +2881,123 @@ dialog.sheet-layer:focus {
     width: 13rem;
   }
 }
+
+/* ---------- Release D (SPOKE-1026): backlog chips, phone search ---------- */
+.filter-chips {
+  display: none;
+}
+@media (max-width: 760px) {
+  /* The backlog page shares the board's main area, whose phone layout turns scrolling off
+     (each board column scrolls itself); the backlog's list scrolls as one page instead. */
+  .backlog-app .kanban-main {
+    display: block;
+    overflow-y: auto;
+  }
+  /* Active filters as chips under the header; the controls live in the options sheet. */
+  .filter-chips {
+    position: sticky;
+    top: 0;
+    z-index: 3;
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.55rem 0.75rem;
+    overflow-x: auto;
+    scrollbar-width: none;
+    background: var(--bg-2);
+    border-bottom: 1px solid color-mix(in srgb, var(--line) 70%, transparent);
+  }
+  .filter-chips::-webkit-scrollbar {
+    display: none;
+  }
+  .filter-open,
+  .filter-chip {
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    height: 2.25rem;
+    border-radius: 999px;
+    font: inherit;
+    font-size: 0.85rem;
+    white-space: nowrap;
+  }
+  .filter-open {
+    padding: 0 0.85rem;
+    border: none;
+    background: var(--bg-3);
+    color: var(--text);
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .filter-open.on {
+    background: color-mix(in srgb, var(--accent) 16%, transparent);
+    color: var(--accent);
+  }
+  .filter-chip {
+    padding: 0 0.2rem 0 0.75rem;
+    border: 1px solid color-mix(in srgb, var(--line) 80%, transparent);
+  }
+  .filter-chip button {
+    display: grid;
+    place-items: center;
+    width: 1.9rem;
+    height: 1.9rem;
+    border: none;
+    border-radius: 50%;
+    background: none;
+    color: var(--muted);
+    cursor: pointer;
+  }
+  .filter-count {
+    flex: none;
+    margin-left: 0.25rem;
+    color: var(--muted);
+    font-size: 0.8rem;
+    white-space: nowrap;
+  }
+
+  /* Search from the Search tab fills the screen between the header and the tab bar, with
+     big rows for a finger. */
+  .appbar-search.open .search-results {
+    position: fixed;
+    left: 0;
+    right: 0;
+    top: calc(var(--bar-h) + env(safe-area-inset-top) + 4.25rem);
+    bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom));
+    max-height: none;
+    margin: 0;
+    border: none;
+    border-top: 1px solid color-mix(in srgb, var(--line) 70%, transparent);
+    border-radius: 0;
+    background: var(--bg);
+    overflow-y: auto;
+    box-shadow: none;
+  }
+  .appbar-search.open .search-hit {
+    min-height: 3.5rem;
+    padding: 0.7rem 1rem;
+    border-bottom: 1px solid color-mix(in srgb, var(--line) 50%, transparent);
+  }
+  .appbar-search.open .search-title {
+    font-size: 1rem;
+    white-space: normal;
+  }
+  .appbar-search.open .search-path {
+    white-space: normal;
+  }
+  .appbar-search.open .search-more,
+  .appbar-search.open .search-note {
+    min-height: 3rem;
+    padding: 0.8rem 1rem;
+  }
+}
+@media (max-width: 760px) {
+  /* No blur on the phone's search bar: a backdrop-filter would make it the containing
+     block of its fixed result list (the same trap as the header's options sheet). */
+  .appbar-search.open {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    background: var(--bg-2);
+  }
+}
