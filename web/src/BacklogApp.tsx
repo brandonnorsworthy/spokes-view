@@ -74,7 +74,13 @@ export function BacklogApp({ server, rootId }: Props): ReactElement {
   const rows = useMemo(() => visibleRows(outline, collapsed, filter), [outline, collapsed, filter]);
   const nodesById = useMemo(() => new Map(data?.nodes.map((n) => [n.id, n])), [data]);
   const rootNode = nodesById.get(rootId);
-  const [menu, setMenu] = useState<{ id: number; x: number; y: number; via: MenuVia } | null>(null);
+  const [menu, setMenu] = useState<{
+    id: number;
+    x: number;
+    y: number;
+    via: MenuVia;
+    fromDetails?: boolean;
+  } | null>(null);
   const menuNode = menu ? nodesById.get(menu.id) : undefined;
   const today = data?.today ?? "";
   const filtering = isFiltering(filter);
@@ -276,7 +282,7 @@ export function BacklogApp({ server, rootId }: Props): ReactElement {
           onClose={closeDetail}
           onSelect={openDetail}
           actions={(n) => <ViewLinks server={server} node={n} />}
-          onActions={(n, x, y) => setMenu({ id: n.id, x, y, via: "pointer" })}
+          onActions={(n, x, y) => setMenu({ id: n.id, x, y, via: "pointer", fromDetails: true })}
         />
       )}
       {menu && menuNode && server && (
@@ -288,7 +294,16 @@ export function BacklogApp({ server, rootId }: Props): ReactElement {
           title={menuNode.title}
           onClose={() => setMenu(null)}
           items={[
-            { label: "Show details", icon: "details", onPick: () => openDetail(menuNode.id) },
+            // The details' own ⋯ button: they are already open.
+            ...(menu.fromDetails
+              ? []
+              : [
+                  {
+                    label: "Show details",
+                    icon: "details" as const,
+                    onPick: () => openDetail(menuNode.id),
+                  },
+                ]),
             ...linkActions(server, menuNode),
           ]}
         />

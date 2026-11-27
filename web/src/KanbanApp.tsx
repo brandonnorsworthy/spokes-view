@@ -67,7 +67,13 @@ export function KanbanApp({ server, rootId }: Props): ReactElement {
     setRequested(null);
   };
 
-  const [menu, setMenu] = useState<{ id: number; x: number; y: number; via: MenuVia } | null>(null);
+  const [menu, setMenu] = useState<{
+    id: number;
+    x: number;
+    y: number;
+    via: MenuVia;
+    fromDetails?: boolean;
+  } | null>(null);
   const board = useMemo(() => (data ? buildBoard(data, show, group) : []), [data, show, group]);
   const rootNode = data?.nodes.find((n) => n.id === rootId);
   const nodesById = useMemo(() => new Map(data?.nodes.map((n) => [n.id, n])), [data]);
@@ -345,7 +351,7 @@ export function KanbanApp({ server, rootId }: Props): ReactElement {
           onClose={closeDetail}
           onSelect={open}
           actions={(n) => <ViewLinks server={server} node={n} />}
-          onActions={(n, x, y) => setMenu({ id: n.id, x, y, via: "pointer" })}
+          onActions={(n, x, y) => setMenu({ id: n.id, x, y, via: "pointer", fromDetails: true })}
         />
       )}
       {menu && menuNode && server && (
@@ -357,11 +363,16 @@ export function KanbanApp({ server, rootId }: Props): ReactElement {
           title={menuNode.title}
           onClose={() => setMenu(null)}
           items={[
-            {
-              label: "Show details",
-              icon: "details",
-              onPick: () => open(menuNode.id),
-            },
+            // The details' own ⋯ button: they are already open.
+            ...(menu.fromDetails
+              ? []
+              : [
+                  {
+                    label: "Show details",
+                    icon: "details" as const,
+                    onPick: () => open(menuNode.id),
+                  },
+                ]),
             ...linkActions(server, menuNode),
           ]}
         />

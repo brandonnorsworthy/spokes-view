@@ -9,58 +9,47 @@ interface Props {
 }
 
 /**
- * A modal bottom sheet: slides up over a dimmed page, closes on the backdrop, Escape or
- * the caller's own button, keeps Tab inside, and gives focus back to whatever had it.
+ * A modal bottom sheet. It is a real modal `<dialog>`, so it opens in the browser's top
+ * layer, above anything else open, including the board's details dialog (a plain fixed
+ * layer would sit behind that). The dialog traps focus and makes the page behind inert;
+ * Escape, the backdrop or the caller's own button close it, and focus goes back to
+ * whatever had it.
  */
 export function Sheet({ label, onClose, children, className }: Props): ReactElement {
-  const ref = useRef<HTMLDivElement>(null);
+  const ref = useRef<HTMLDialogElement>(null);
 
   useEffect(() => {
     const before = document.activeElement as HTMLElement | null;
-    const el = ref.current;
-    el?.querySelector<HTMLElement>("button, a[href], input, select, [tabindex]")?.focus();
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        // Close the sheet only, not the panel behind it.
-        e.stopPropagation();
-        onClose();
-      } else if (e.key === "Tab" && el) {
-        const items = [
-          ...el.querySelectorAll<HTMLElement>("button, a[href], input, select, [tabindex]"),
-        ].filter((x) => !x.hasAttribute("disabled"));
-        const first = items[0];
-        const last = items[items.length - 1];
-        if (!first || !last) return;
-        if (e.shiftKey && document.activeElement === first) {
-          e.preventDefault();
-          last.focus();
-        } else if (!e.shiftKey && document.activeElement === last) {
-          e.preventDefault();
-          first.focus();
-        }
-      }
-    };
-    window.addEventListener("keydown", onKey, true);
+    const d = ref.current;
+    if (d && !d.open) d.showModal();
+    // A touch opened it: hold focus on the dialog itself, so no item shows a focus ring.
+    // From a keyboard, start on the first item.
+    if (window.matchMedia("(pointer: coarse)").matches) d?.focus();
+    else d?.querySelector<HTMLElement>("button, a[href]")?.focus();
     return () => {
-      window.removeEventListener("keydown", onKey, true);
       before?.focus();
     };
-  }, [onClose]);
+  }, []);
 
   return (
-    <div className="sheet-layer">
+    <dialog
+      ref={ref}
+      className="sheet-layer"
+      aria-label={label}
+      tabIndex={-1}
+      onCancel={(e) => {
+        // Escape: close this sheet only, not the dialog or panel behind it.
+        e.preventDefault();
+        e.stopPropagation();
+        onClose();
+      }}
+      onContextMenu={(e) => e.preventDefault()}
+    >
       <div className="sheet-backdrop" onClick={onClose} aria-hidden="true" />
-      <div
-        ref={ref}
-        className={`sheet ${className ?? ""}`}
-        role="dialog"
-        aria-modal="true"
-        aria-label={label}
-        onContextMenu={(e) => e.preventDefault()}
-      >
+      <div className={`sheet ${className ?? ""}`}>
         <div className="sheet-handle" aria-hidden="true" />
         {children}
       </div>
-    </div>
+    </dialog>
   );
 }

@@ -1,4 +1,5 @@
 import { useRef, type PointerEvent, type ReactElement, type MouseEvent } from "react";
+import { createPortal } from "react-dom";
 import { backlogUrl } from "./backlog";
 import { ContextMenu, type MenuItem } from "./ContextMenu";
 import { spokeId } from "./format";
@@ -41,7 +42,8 @@ export function toast(text: string): void {
   el.className = "toast";
   el.setAttribute("role", "status");
   el.textContent = text;
-  document.body.appendChild(el);
+  // Inside an open modal dialog (the board's details) when there is one, or it hides behind it.
+  (document.querySelector("dialog.modal[open]") ?? document.body).appendChild(el);
   window.setTimeout(() => el.remove(), 1800);
 }
 
@@ -126,8 +128,18 @@ interface Props {
   onClose: () => void;
 }
 
-/** A node's actions: a bottom sheet for touch, a menu at the pointer for a mouse or keys. */
-export function NodeActions({ via, x, y, id, title, items, onClose }: Props): ReactElement {
+/**
+ * A node's actions: a bottom sheet for touch, a menu at the pointer for a mouse or keys.
+ */
+export function NodeActions(props: Props): ReactElement {
+  // An open modal dialog (the board's details) makes everything outside it unclickable,
+  // so the actions render inside it when one is open, and on the page otherwise.
+  const host = document.querySelector<HTMLDialogElement>("dialog.modal[open]");
+  const body = <NodeActionsBody {...props} />;
+  return host ? createPortal(body, host) : body;
+}
+
+function NodeActionsBody({ via, x, y, id, title, items, onClose }: Props): ReactElement {
   if (!wantsSheet(via)) {
     return (
       <ContextMenu

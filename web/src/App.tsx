@@ -169,7 +169,13 @@ export function App(): ReactElement {
   /** The node search last jumped to: centred once, and glowing for a moment. */
   const [found, setFound] = useState<{ id: number; key: number } | null>(null);
   const [glowing, setGlowing] = useState(false);
-  const [menu, setMenu] = useState<{ id: number; x: number; y: number; via: MenuVia } | null>(null);
+  const [menu, setMenu] = useState<{
+    id: number;
+    x: number;
+    y: number;
+    via: MenuVia;
+    fromDetails?: boolean;
+  } | null>(null);
   const [legendOpen, setLegendOpen] = useState(false);
   /** The node the tree is laid out from (`isolate=<id>`), or null for the whole tree. */
   const [isolated, setIsolated] = useState<number | null>(() =>
@@ -1077,7 +1083,7 @@ export function App(): ReactElement {
           onSelect={select}
           onToggle={(id) => void toggle(id)}
           server={server}
-          onActions={(n, x, y) => setMenu({ id: n.id, x, y, via: "pointer" })}
+          onActions={(n, x, y) => setMenu({ id: n.id, x, y, via: "pointer", fromDetails: true })}
         />
       )}
       {menu && menuNode && server && (
@@ -1089,7 +1095,16 @@ export function App(): ReactElement {
           title={menuNode.title}
           onClose={closeMenu}
           items={[
-            { label: "Show details", icon: "details" as const, onPick: () => select(menuNode.id) },
+            // The details' own ⋯ button: they are already open.
+            ...(menu.fromDetails
+              ? []
+              : [
+                  {
+                    label: "Show details",
+                    icon: "details" as const,
+                    onPick: () => select(menuNode.id),
+                  },
+                ]),
             ...(menuNode.child_count > 0
               ? [
                   {

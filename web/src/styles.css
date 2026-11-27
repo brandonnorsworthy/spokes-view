@@ -2791,3 +2791,31 @@ a.btn {
     outline: none;
   }
 }
+
+/* The action sheet is a modal dialog (top layer, above the board's details dialog). */
+dialog.sheet-layer {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  max-height: none;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: inherit;
+  overflow: hidden;
+}
+dialog.sheet-layer::backdrop {
+  background: transparent;
+}
+dialog.sheet-layer:focus {
+  outline: none;
+}
+/* The desktop menu is a popover (top layer): undo the popover's default centring. */
+.context-menu[popover] {
+  inset: auto;
+  margin: 0;
+  color: inherit;
+}
