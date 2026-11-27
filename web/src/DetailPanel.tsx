@@ -136,10 +136,17 @@ export function NodeDetails(props: DetailsProps): ReactElement {
         />
       )}
       <div className="panel-head" {...grip}>
-        <nav className="crumbs" aria-label="Path">
+        <nav
+          className="crumbs"
+          aria-label="Path"
+          // One line that starts scrolled to the end, so the parent is what you see first.
+          ref={(el) => {
+            if (el) el.scrollLeft = el.scrollWidth;
+          }}
+        >
           {path.map((c) => (
             <span key={c.id}>
-              <button type="button" className="link" onClick={() => onSelect(c.id)}>
+              <button type="button" className="link" title={c.title} onClick={() => onSelect(c.id)}>
                 {c.title}
               </button>
               <span aria-hidden="true"> / </span>

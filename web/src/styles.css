@@ -2819,3 +2819,34 @@ dialog.sheet-layer:focus {
   margin: 0;
   color: inherit;
 }
+
+/* The path above a node's title is one line: each ancestor is cut short (full title on
+   hover), and on a narrow screen the line scrolls sideways, starting at the parent. A deep
+   node with long ancestors (SPOKE-954) used to fill the whole sheet with its path. */
+.crumbs {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  overflow-x: auto;
+  white-space: nowrap;
+  scrollbar-width: none;
+}
+.crumbs::-webkit-scrollbar {
+  display: none;
+}
+.crumbs > span {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+}
+.crumbs .link {
+  max-width: 14rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+@media (max-width: 760px) {
+  .crumbs .link {
+    max-width: 9rem;
+  }
+}
