@@ -2850,3 +2850,34 @@ dialog.sheet-layer:focus {
     max-width: 9rem;
   }
 }
+
+/* A card or row a search pick jumped to glows for a moment. */
+.found {
+  animation: found-glow 1.8s var(--ease);
+}
+@keyframes found-glow {
+  0%,
+  40% {
+    box-shadow:
+      0 0 0 3px var(--focus),
+      0 0 24px color-mix(in srgb, var(--focus) 45%, transparent);
+  }
+  100% {
+    box-shadow: 0 0 0 0 transparent;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .found {
+    animation: none;
+    outline: 3px solid var(--focus);
+  }
+}
+
+/* Wide screens: the title beside the logo has a fixed width, so the tabs and search box
+   sit in the same place on every page whatever the page or selected node is called. */
+@media (min-width: 761px) {
+  .appbar-title {
+    flex: none;
+    width: 13rem;
+  }
+}

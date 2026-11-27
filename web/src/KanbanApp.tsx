@@ -16,7 +16,6 @@ import {
   GROUP_PARAM,
   groupingFrom,
   initialColumn,
-  treeUrl,
   withCollapsed,
   type Card,
   type Grouping,
@@ -24,6 +23,7 @@ import {
 import { usePhone } from "./usePhone";
 import { replaceQuery } from "./urlState";
 import { AppBar } from "./AppBar";
+import { revealNode } from "./reveal";
 import { Search } from "./Search";
 import { Icon } from "./Icon";
 import { OptGroup, Segmented, Toggle } from "./ViewOptions";
@@ -67,6 +67,7 @@ export function KanbanApp({ server, rootId }: Props): ReactElement {
     setRequested(null);
   };
 
+  const [searching, setSearching] = useState(false);
   const [menu, setMenu] = useState<{
     id: number;
     x: number;
@@ -112,6 +113,26 @@ export function KanbanApp({ server, rootId }: Props): ReactElement {
       replaceQuery((p) => p.set(COLUMN_PARAM, key));
     }
   };
+  // A search pick stays on the board: show the card (its column, unfolded, paged in) and
+  // open its details. A node that isn't on this board still opens its details here.
+  const pick = (id: number): void => {
+    const i = board.findIndex((c) => c.cards.some((x) => x.node.id === id));
+    const col = board[i];
+    if (col) {
+      const at = col.cards.findIndex((x) => x.node.id === id);
+      setLimits((l) => ({ ...l, [col.key]: Math.max(l[col.key] ?? CARD_PAGE, at + 1) }));
+      if (phone) {
+        setRequested(col.key);
+        replaceQuery((p) => p.set(COLUMN_PARAM, col.key));
+        showColumn(i, true);
+      } else if (collapsed.has(col.key)) {
+        toggleCollapsed(col.key);
+      }
+      revealNode(id);
+    }
+    open(id);
+  };
+
   // Land on the active column without animating when the board (re)appears on a phone.
   const landed = useRef<Grouping | null>(null);
   useLayoutEffect(() => {
@@ -281,18 +302,21 @@ export function KanbanApp({ server, rootId }: Props): ReactElement {
             : undefined
         }
         title={rootNode?.title ?? spokeId(rootId)}
+        searching={searching}
+        onSearch={() => setSearching((on) => !on)}
         extra={
-          // Desktop: the same search box as the tree; a pick opens the tree on that node.
-          // Phones use the Search tab instead.
+          // The same search box as the tree (on a phone, behind the Search tab). A pick
+          // stays on this page.
           server ? (
-            <div className="appbar-search">
+            <div className={`appbar-search ${searching ? "open" : ""}`}>
               <Search
                 server={server}
                 show={show}
                 supported
                 disabled={false}
                 onPick={(hit) => {
-                  window.location.href = treeUrl(server, hit.id);
+                  setSearching(false);
+                  pick(hit.id);
                 }}
               />
             </div>
@@ -400,6 +424,7 @@ function KanbanCard({
     <button
       type="button"
       className={`card ${n.deferred ? "deferred" : ""} ${isEpic(n) ? "epic" : ""}`}
+      data-node-id={n.id}
       data-status={n.status}
       onClick={() => onOpen(n.id)}
       {...menu}

@@ -28,7 +28,7 @@ import {
   isEpic,
 } from "./format";
 import { AppBar } from "./AppBar";
-import { treeUrl } from "./kanban";
+import { revealNode } from "./reveal";
 import { Search } from "./Search";
 import { OptGroup, Toggle } from "./ViewOptions";
 import type { MenuVia } from "./Graph";
@@ -74,6 +74,7 @@ export function BacklogApp({ server, rootId }: Props): ReactElement {
   const rows = useMemo(() => visibleRows(outline, collapsed, filter), [outline, collapsed, filter]);
   const nodesById = useMemo(() => new Map(data?.nodes.map((n) => [n.id, n])), [data]);
   const rootNode = nodesById.get(rootId);
+  const [searching, setSearching] = useState(false);
   const [menu, setMenu] = useState<{
     id: number;
     x: number;
@@ -158,18 +159,28 @@ export function BacklogApp({ server, rootId }: Props): ReactElement {
             : undefined
         }
         title={rootNode?.title ?? spokeId(rootId)}
+        searching={searching}
+        onSearch={() => setSearching((on) => !on)}
         extra={
-          // Desktop: the same search box as the tree; a pick opens the tree on that node.
-          // Phones use the Search tab instead.
+          // The same search box as the tree (on a phone, behind the Search tab). A pick
+          // stays on this page.
           server ? (
-            <div className="appbar-search">
+            <div className={`appbar-search ${searching ? "open" : ""}`}>
               <Search
                 server={server}
                 show={show}
                 supported
                 disabled={false}
                 onPick={(hit) => {
-                  window.location.href = treeUrl(server, hit.id);
+                  setSearching(false);
+                  // Stay on the backlog: open the branches down to the row, show it, open
+                  // its details. A node outside this backlog still opens its details here.
+                  if (outline.some((r) => r.node.id === hit.id)) {
+                    const up = new Set(hit.path.map((c) => c.id));
+                    setCollapsed((c) => new Set([...c].filter((x) => !up.has(x))));
+                    revealNode(hit.id);
+                  }
+                  openDetail(hit.id);
                 }}
               />
             </div>
@@ -337,6 +348,7 @@ function BacklogRow({
   return (
     <div
       className={`row ${n.deferred ? "deferred" : ""} ${isEpic(n) ? "epic" : ""}`}
+      data-node-id={n.id}
       data-status={n.status}
       style={{ "--depth": row.depth } as CSSProperties}
     >
