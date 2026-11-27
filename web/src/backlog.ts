@@ -1,13 +1,16 @@
 import { isClosed, refinementOf, typeOf } from "./format";
 import { compareNodes } from "./kanban";
-import type { NodeType, Refinement, TreeResponse, ViewNode } from "./types";
+import type { NodeType, Refinement, Shown, TreeResponse, ViewNode } from "./types";
+import { withFilter, withShown } from "./urlState";
 
 /** URL parameter that turns the page into a backlog list of one node's descendants. */
 export const BACKLOG_PARAM = "backlog";
 
 /** The page that lists `id`'s descendants on `server` as a backlog. */
-export function backlogUrl(server: string, id: number): string {
+export function backlogUrl(server: string, id: number, show?: Shown, filter?: RowFilter): string {
   const q = new URLSearchParams({ server, [BACKLOG_PARAM]: String(id) });
+  if (show) withShown(q, show);
+  if (filter) withFilter(q, filter);
   return `/?${q.toString()}`;
 }
 

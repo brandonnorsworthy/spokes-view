@@ -2,6 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react
 import { ApiError, fetchNode, fetchTree, type TreeQuery } from "./api";
 import type { DetailState } from "./DetailPanel";
 import type { Shown, TreeResponse } from "./types";
+import { replaceQuery, shownFrom, withShown } from "./urlState";
 
 /** The API's deepest slice: a page shows this many levels beneath its root. */
 const SUBTREE_DEPTH = 10;
@@ -34,7 +35,7 @@ export interface Subtree {
  * Shared by the kanban board and the backlog list.
  */
 export function useSubtree(server: string | null, rootId: number): Subtree {
-  const [show, setShow] = useState<Shown>({ done: false, dropped: false });
+  const [show, setShow] = useState<Shown>(() => shownFrom(window.location.search));
   const [slice, setSlice] = useState<{ etag: string | null; data: TreeResponse } | null>(null);
   const [error, setError] = useState<ApiError | null>(null);
   const [refreshError, setRefreshError] = useState<string | null>(null);
@@ -109,8 +110,12 @@ export function useSubtree(server: string | null, rootId: number): Subtree {
   );
   const closeDetail = useCallback(() => setDetail(null), []);
   const toggleShown = useCallback(
-    (which: keyof Shown) => setShow((s) => ({ ...s, [which]: !s[which] })),
-    [],
+    (which: keyof Shown) => {
+      const next = { ...show, [which]: !show[which] };
+      setShow(next);
+      replaceQuery((p) => withShown(p, next));
+    },
+    [show],
   );
 
   // Refresh with the slice's tag: an unchanged slice costs a 304.
