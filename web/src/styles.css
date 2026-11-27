@@ -2881,3 +2881,144 @@ dialog.sheet-layer:focus {
     width: 13rem;
   }
 }
+
+/* ---------- Replay bar on a phone (SPOKE-1026, Release D) ----------
+   Docked above the tab bar, a scrubber on top and big touch targets below; the rest is in a
+   sheet behind the "more" button. Wide screens keep the floating bar above. */
+@media (max-width: 760px) {
+  .replay.replay-phone {
+    position: fixed;
+    top: auto;
+    left: 0.5rem;
+    right: 0.5rem;
+    bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom) + 0.5rem);
+    transform: none;
+    width: auto;
+    z-index: 25;
+    gap: 0.25rem;
+    padding: 0.6rem 0.75rem 0.5rem;
+    border-radius: var(--radius-xl);
+    background: var(--glass);
+    backdrop-filter: blur(18px) saturate(1.4);
+    -webkit-backdrop-filter: blur(18px) saturate(1.4);
+  }
+  .rp-caption {
+    display: flex;
+    align-items: baseline;
+    gap: 0.6rem;
+    min-width: 0;
+    font-size: 0.85rem;
+  }
+  .rp-what {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .rp-pos {
+    flex: none;
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+  }
+  .replay-phone .replay-scrub {
+    height: 2.25rem;
+    margin: 0;
+  }
+  .replay-phone .replay-scrub::-webkit-slider-thumb {
+    width: 1.75rem;
+    height: 1.75rem;
+  }
+  .replay-phone .replay-scrub::-moz-range-thumb {
+    width: 1.75rem;
+    height: 1.75rem;
+  }
+  .rp-row {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+  }
+  .rp-btn {
+    display: grid;
+    place-items: center;
+    flex: 1 1 0;
+    min-width: var(--tap);
+    min-height: var(--tap);
+    padding: 0;
+    border: none;
+    border-radius: var(--radius);
+    background: var(--bg-3);
+    color: var(--text);
+    font: inherit;
+    font-variant-emoji: text;
+    cursor: pointer;
+    transition: transform 0.12s var(--ease);
+  }
+  .rp-btn:active:not(:disabled) {
+    transform: scale(0.95);
+  }
+  .rp-btn:disabled {
+    opacity: 0.4;
+    cursor: default;
+  }
+  .rp-btn.rp-play {
+    flex: 1.6 1 0;
+    min-height: 3.25rem;
+    background: var(--accent);
+    color: #fff;
+    font-size: 1.3rem;
+  }
+  .rp-btn.rp-speed {
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+  }
+  .sheet.replay-sheet {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    padding: 0 1.25rem max(1rem, env(safe-area-inset-bottom));
+  }
+  .replay-sheet .sheet-handle {
+    flex: none;
+  }
+  .rs-head {
+    color: var(--muted);
+    font-size: 0.9rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .rs-jump {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.5rem;
+  }
+  .rs-jump .btn {
+    min-height: var(--tap);
+  }
+  .replay-sheet .segmented {
+    display: grid;
+  }
+  .replay-sheet .segmented button {
+    min-height: var(--tap);
+  }
+  .replay-sheet .opt-toggle {
+    justify-content: space-between;
+    min-height: var(--tap);
+    padding: 0 0.9rem;
+    border-radius: var(--radius);
+    background: var(--bg-3);
+  }
+  .replay-sheet .replay-key {
+    gap: 0.4rem 1rem;
+    font-size: 0.85rem;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .rp-btn {
+    transition: none;
+  }
+  .rp-btn:active:not(:disabled) {
+    transform: none;
+  }
+}

@@ -42,6 +42,7 @@ import { Search } from "./Search";
 import { togglesForHit } from "./search";
 import { isolateFrom, nodeFrom, NODE_PARAM, replaceQuery, withIsolate } from "./urlState";
 import { Icon } from "./Icon";
+import { usePhone } from "./usePhone";
 import type { SearchHit, ServerEntry, Shown, TreeResponse } from "./types";
 
 /** Levels loaded on a server's first load, and per branch opened later. */
@@ -161,6 +162,7 @@ export function App(): ReactElement {
   const [refreshing, setRefreshing] = useState(false);
   const [expandingAll, setExpandingAll] = useState(false);
   const [expandNote, setExpandNote] = useState<string | null>(null);
+  const phone = usePhone();
   const [replay, setReplay] = useState<ReplayState | null>(null);
   const [step, setStep] = useState(0);
   const [playing, setPlaying] = useState(false);
@@ -860,7 +862,7 @@ export function App(): ReactElement {
           onMenu={() => undefined}
           highlight={highlight}
           follow
-          topInset={REPLAY_BAR_PX}
+          topInset={phone ? 0 : REPLAY_BAR_PX}
           softGlow={fullGlow || !playing || speed === 1}
         />
       ) : (
