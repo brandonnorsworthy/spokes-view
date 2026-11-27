@@ -1,6 +1,6 @@
 import { isClosed, REFINEMENT_LABEL, REFINEMENTS, refinementOf, STATUS_LABEL } from "./format";
 import type { Crumb, Shown, Status, TreeResponse, ViewNode } from "./types";
-import { NODE_PARAM, withShown } from "./urlState";
+import { ISOLATE_PARAM, NODE_PARAM, withShown } from "./urlState";
 
 /** URL parameter that turns the page into a kanban board of one node's descendants. */
 export const KANBAN_PARAM = "kanban";
@@ -29,6 +29,11 @@ export function treeUrl(server: string, id?: number): string {
   const q = new URLSearchParams({ server });
   if (id !== undefined && id !== 1) q.set(NODE_PARAM, String(id));
   return `/?${q.toString()}`;
+}
+
+/** The tree page on `server`, centred on node `id` and laid out from it alone (isolated). */
+export function isolateUrl(server: string, id: number): string {
+  return `${treeUrl(server, id)}&${ISOLATE_PARAM}=${String(id)}`;
 }
 
 /** The board's root id from a query string, or null when the page is the graph. */

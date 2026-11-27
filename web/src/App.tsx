@@ -40,7 +40,8 @@ import {
 } from "./treeStore";
 import { Search } from "./Search";
 import { togglesForHit } from "./search";
-import { nodeFrom, NODE_PARAM, replaceQuery } from "./urlState";
+import { isolateFrom, nodeFrom, NODE_PARAM, replaceQuery, withIsolate } from "./urlState";
+import { Icon } from "./Icon";
 import type { SearchHit, ServerEntry, Shown, TreeResponse } from "./types";
 
 /** Levels loaded on a server's first load, and per branch opened later. */
@@ -170,6 +171,10 @@ export function App(): ReactElement {
   const [glowing, setGlowing] = useState(false);
   const [menu, setMenu] = useState<{ id: number; x: number; y: number; via: MenuVia } | null>(null);
   const [legendOpen, setLegendOpen] = useState(false);
+  /** The node the tree is laid out from (`isolate=<id>`), or null for the whole tree. */
+  const [isolated, setIsolated] = useState<number | null>(() =>
+    isolateFrom(window.location.search),
+  );
   // The phone's search: the Search tab opens it over the tree (`search=1` opens it on load).
   const [searching, setSearching] = useState(
     () => new URLSearchParams(window.location.search).get("search") === "1",
@@ -187,9 +192,13 @@ export function App(): ReactElement {
   const abort = useRef<AbortController | null>(null);
   const refreshBusy = useRef(false);
   const replayRef = useRef(replay);
+  const isolatedRef = useRef(isolated);
+  /** The server the page is on, so choosing another one can drop the isolation. */
+  const serverRef = useRef<string | null>(null);
   useLayoutEffect(() => {
     replayRef.current = replay;
-  }, [replay]);
+    isolatedRef.current = isolated;
+  }, [replay, isolated]);
 
   const store = useMemo(() => buildStore(slices.map((s) => s.data)), [slices]);
 
@@ -268,6 +277,9 @@ export function App(): ReactElement {
   const choose = useCallback(
     (name: string) => {
       rememberServer(name);
+      // Node ids belong to one server: another server starts from its whole tree.
+      if (serverRef.current !== null && serverRef.current !== name) setIsolated(null);
+      serverRef.current = name;
       setServer(name);
       setShow(NOTHING_CLOSED);
       void load(name, NOTHING_CLOSED, false);
@@ -345,6 +357,43 @@ export function App(): ReactElement {
     [server, store, show, loadDetail],
   );
 
+  /**
+   * Opens `id`: loads its children if they are not loaded yet (or the node is not in the
+   * store at all), then marks it expanded. Resolves false when the branch could not load.
+   */
+  const openBranch = useCallback(
+    async (id: number): Promise<boolean> => {
+      if (!server) return false;
+      if (store.nodes.has(id) && !needsFetch(store, id)) {
+        setExpanded((ex) => (ex.has(id) ? ex : new Set(ex).add(id)));
+        return true;
+      }
+      if (loading.has(id)) return false;
+      const gen = generation.current;
+      setLoading((l) => new Set(l).add(id));
+      const q = { root: id, depth: BRANCH_DEPTH, show };
+      try {
+        const r = await fetchTree(server, q, null);
+        if (gen !== generation.current || !r.data) return false;
+        const data = r.data;
+        setSlices((s) => [...s.filter((x) => x.q.root !== id), { q, etag: r.etag, data }]);
+        setExpanded((ex) => new Set(ex).add(id));
+        return true;
+      } catch (e) {
+        if (gen === generation.current)
+          setRefreshError(`Could not open SPOKE-${id}: ${errorOf(e).message}`);
+        return false;
+      } finally {
+        setLoading((l) => {
+          const n = new Set(l);
+          n.delete(id);
+          return n;
+        });
+      }
+    },
+    [server, store, loading, show],
+  );
+
   const toggle = useCallback(
     async (id: number) => {
       if (!server) return;
@@ -356,33 +405,43 @@ export function App(): ReactElement {
         });
         return;
       }
-      if (!needsFetch(store, id)) {
-        setExpanded((ex) => new Set(ex).add(id));
-        return;
-      }
-      if (loading.has(id)) return;
-      const gen = generation.current;
-      setLoading((l) => new Set(l).add(id));
-      const q = { root: id, depth: BRANCH_DEPTH, show };
-      try {
-        const r = await fetchTree(server, q, null);
-        if (gen !== generation.current || !r.data) return;
-        const data = r.data;
-        setSlices((s) => [...s.filter((x) => x.q.root !== id), { q, etag: r.etag, data }]);
-        setExpanded((ex) => new Set(ex).add(id));
-      } catch (e) {
-        if (gen === generation.current)
-          setRefreshError(`Could not open SPOKE-${id}: ${errorOf(e).message}`);
-      } finally {
-        setLoading((l) => {
-          const n = new Set(l);
-          n.delete(id);
-          return n;
-        });
-      }
+      await openBranch(id);
     },
-    [server, store, expanded, loading, show],
+    [server, store, expanded, openBranch],
   );
+
+  // ---- isolate ----
+  const isolate = useCallback((id: number) => {
+    if (id === ROOT_ID) return;
+    setIsolated(id);
+    setFitKey((k) => k + 1);
+  }, []);
+  const exitIsolate = useCallback(() => {
+    setIsolated(null);
+    setFitKey((k) => k + 1);
+  }, []);
+
+  // Keep `isolate=` in step with the state, so a reload keeps it.
+  useEffect(() => {
+    replaceQuery((p) => withIsolate(p, isolated));
+  }, [isolated]);
+
+  // Once the tree is ready, make sure the isolated node's children are loaded and open, and
+  // fit the view to them. A node that cannot be loaded (bad id) ends the isolation.
+  const preparedIso = useRef<number | null>(null);
+  useEffect(() => {
+    if (isolated === null) {
+      preparedIso.current = null;
+      return;
+    }
+    if (tree.kind !== "ready" || preparedIso.current === isolated) return;
+    preparedIso.current = isolated;
+    void openBranch(isolated).then((ok) => {
+      if (isolatedRef.current !== isolated) return;
+      if (ok) setFitKey((k) => k + 1);
+      else setIsolated(null);
+    });
+  }, [isolated, tree.kind, openBranch]);
 
   // Jump to a search hit: load the branches down to it, open them, select and centre it.
   const shownNow = show;
@@ -442,6 +501,9 @@ export function App(): ReactElement {
   // the tree under them, and then jumps.
   const pickHit = useCallback(
     async (hit: Pick<SearchHit, "id" | "path" | "hidden_by">) => {
+      // A pick outside the isolated branch leaves the isolation first.
+      if (isolated !== null && ![...hit.path.map((c) => c.id), hit.id].includes(isolated))
+        setIsolated(null);
       const next = togglesForHit(hit, show);
       if (!next || !server) {
         await reveal(hit);
@@ -451,7 +513,7 @@ export function App(): ReactElement {
       const slices = await load(server, next, true);
       if (slices) await reveal(hit, { show: next, slices });
     },
-    [server, show, load, reveal],
+    [server, show, isolated, load, reveal],
   );
 
   // `?node=<id>`: once the tree is ready, jump to that node as a search pick would. The node
@@ -617,25 +679,36 @@ export function App(): ReactElement {
     return () => window.clearInterval(t);
   }, [refresh]);
 
-  // Escape closes the panel.
+  // Escape closes the panel; with no panel open it leaves the isolated view (sheets, menus,
+  // the search box and replay handle their own Escape first).
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
+      if (e.key !== "Escape") return;
+      if (detailRef.current) {
         setSelected(null);
         setDetail(null);
+      } else if (isolatedRef.current !== null && !replayRef.current && !e.defaultPrevented) {
+        exitIsolate();
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, []);
+  }, [exitIsolate]);
 
   const closeMenu = useCallback(() => setMenu(null), []);
   const menuNode = menu ? store.nodes.get(menu.id) : undefined;
 
+  // The tree is laid out from the isolated node when it is known, else from the root.
+  const isoNode = isolated !== null ? store.nodes.get(isolated) : undefined;
+  const layoutFrom = isoNode ? isoNode.id : ROOT_ID;
   const layout = useMemo(
     () =>
-      layoutRadial(ROOT_ID, (id) => (expanded.has(id) ? knownChildren(store, id) : []), undefined),
-    [store, expanded],
+      layoutRadial(
+        layoutFrom,
+        (id) => (expanded.has(id) ? knownChildren(store, id) : []),
+        undefined,
+      ),
+    [store, expanded, layoutFrom],
   );
 
   // ---- replay ----
@@ -789,6 +862,8 @@ export function App(): ReactElement {
           At this point in the history the subtree did not exist yet (or is closed).
         </Message>
       );
+  } else if (root && isolated !== null && !isoNode) {
+    body = <Message title={`Loading ${spokeId(isolated)}…`} />;
   } else if (root) {
     body = (
       <Graph
@@ -815,11 +890,11 @@ export function App(): ReactElement {
         server={server}
         tab="tree"
         nodeId={selected ?? ROOT_ID}
-        crumb={server ?? undefined}
+        crumb={isoNode && server ? `Isolated · ${server}` : (server ?? undefined)}
         title={
           selected !== null
             ? (store.nodes.get(selected)?.title ?? "To do")
-            : (root?.title ?? "To do")
+            : (isoNode?.title ?? root?.title ?? "To do")
         }
         searching={searching}
         onSearch={() => setSearching((on) => !on)}
@@ -928,6 +1003,25 @@ export function App(): ReactElement {
       )}
       <main className="main">
         {body}
+        {isoNode && replay === null && (
+          <>
+            <div className="iso-frame" aria-hidden="true" />
+            <div className="iso-bar">
+              <div className="iso-pill">
+                <span className="iso-label">Isolated</span>
+                <span className="iso-title">{isoNode.title}</span>
+                <button
+                  type="button"
+                  className="iso-exit"
+                  aria-label="Exit isolated view"
+                  onClick={exitIsolate}
+                >
+                  <Icon name="close" size="1rem" />
+                </button>
+              </div>
+            </div>
+          </>
+        )}
         {ready && replay?.kind === "ready" && (
           <ReplayBar
             scope={scopeLabel(
@@ -1013,6 +1107,16 @@ export function App(): ReactElement {
                   },
                 ]
               : []),
+            ...(menuNode.id !== ROOT_ID && menuNode.child_count > 0
+              ? [
+                  {
+                    label: "Isolate",
+                    hint: "Only this branch, with a way back",
+                    icon: "focus" as const,
+                    onPick: () => isolate(menuNode.id),
+                  },
+                ]
+              : []),
             ...(menuNode.id !== ROOT_ID
               ? [
                   {
@@ -1027,7 +1131,7 @@ export function App(): ReactElement {
                   },
                 ]
               : []),
-            ...linkActions(server, menuNode, { tree: false }),
+            ...linkActions(server, menuNode, { tree: false, isolate: false }),
           ]}
         />
       )}
