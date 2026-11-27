@@ -7,7 +7,7 @@
 //! - `GET /api/servers/{name}/nodes/{id}?include_closed=&include_dropped=`: one node with notes.
 //!
 //! - `GET /api/servers/{name}/history?root=`: the replay history of a subtree (Spokes 0.4.0+).
-//! - `GET /api/servers/{name}/search?q=&limit=&include_closed=&include_dropped=&scope=`: fuzzy search (Spokes 0.5.0+).
+//! - `GET /api/servers/{name}/search?q=&limit=&offset=&match=&include_closed=&include_dropped=&scope=`: fuzzy search (Spokes 0.5.0+).
 //!
 //! Errors are `{"error": "...", "code": "..."}` with `code` one of `bad_request`,
 //! `unknown_server`, `not_found`, `unreachable`, `too_old`, `history_unsupported`,
@@ -441,6 +441,8 @@ const SEARCH_UNSUPPORTED: &str = "this Spokes server is older than 0.5.0 and has
 const MAX_QUERY_CHARS: usize = 200;
 /// Most results Spokes returns.
 const MAX_SEARCH_LIMIT: i64 = 50;
+/// Furthest page start Spokes accepts.
+const MAX_SEARCH_OFFSET: i64 = 10_000;
 
 /// Percent-encodes every byte outside the unreserved set (`A-Z a-z 0-9 - . _ ~`).
 fn percent_encode(s: &str) -> String {
@@ -464,7 +466,15 @@ async fn search(
     let server = state.server(&name)?;
     let p = params(
         query,
-        &["q", "limit", "include_closed", "include_dropped", "scope"],
+        &[
+            "q",
+            "limit",
+            "offset",
+            "match",
+            "include_closed",
+            "include_dropped",
+            "scope",
+        ],
     )?;
     let q = p
         .get("q")
@@ -492,6 +502,25 @@ async fn search(
                 })?,
         ),
     };
+    let offset = match p.get("offset") {
+        None => None,
+        Some(v) => Some(
+            v.trim()
+                .parse::<i64>()
+                .ok()
+                .filter(|n| (0..=MAX_SEARCH_OFFSET).contains(n))
+                .ok_or_else(|| {
+                    ApiError::bad(format!(
+                        "offset must be a whole number from 0 to {MAX_SEARCH_OFFSET}"
+                    ))
+                })?,
+        ),
+    };
+    let match_mode = match p.get("match").map(|v| v.trim().to_ascii_lowercase()) {
+        None => None,
+        Some(m) if matches!(m.as_str(), "best" | "any" | "all") => Some(m),
+        Some(_) => return Err(ApiError::bad("match must be best, any or all")),
+    };
     let include_closed = parse_bool(p.get("include_closed"), "include_closed")?;
     let dropped = parse_include_dropped(p.get("include_dropped"))?;
     let scope = match p.get("scope") {
@@ -501,6 +530,13 @@ async fn search(
     let mut path = format!("/api/search?q={}", percent_encode(q));
     if let Some(limit) = limit {
         path.push_str(&format!("&limit={limit}"));
+    }
+    // Only forwarded when sent, so a Spokes that refuses unknown parameters still works.
+    if let Some(offset) = offset {
+        path.push_str(&format!("&offset={offset}"));
+    }
+    if let Some(m) = match_mode {
+        path.push_str(&format!("&match={m}"));
     }
     if include_closed {
         path.push_str("&include_closed=true");

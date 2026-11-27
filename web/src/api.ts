@@ -137,9 +137,11 @@ export async function fetchSearch(
   show: Shown,
   limit: number,
   signal?: AbortSignal,
+  /** Page start; sent only when above 0, so an older Spokes never sees it. */
+  offset = 0,
 ): Promise<SearchResponse> {
   const r = await getJson<SearchResponse>(
-    `/api/servers/${enc(server)}/search?q=${enc(query)}&limit=${String(limit)}&${showParams(show)}`,
+    `/api/servers/${enc(server)}/search?q=${enc(query)}&limit=${String(limit)}${offset > 0 ? `&offset=${String(offset)}` : ""}&${showParams(show)}`,
     null,
     signal,
   );

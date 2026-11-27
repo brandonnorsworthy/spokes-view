@@ -120,6 +120,12 @@ export interface SearchHit {
   path: Crumb[];
   /** Why it matched when the title did not: `alias "nas"` or `in notes`. */
   via: string | null;
+  /** Spokes 0.11.0+: the node's ID was typed (958, SPOKE-958). */
+  id_match?: boolean;
+  /** Spokes 0.11.0+: the keywords this hit matched, a subset of `keywords`. */
+  matched?: string[];
+  /** Spokes 0.11.0+: the "Show done" / "Show dropped" boxes needed to draw this node. */
+  hidden_by?: Array<"done" | "dropped">;
 }
 
 /** Spokes 0.5.0+ `/api/search`: the `search` tool's ranked matches as data. */
@@ -132,6 +138,12 @@ export interface SearchResponse extends Meta {
   /** Matches found, before the limit. */
   total: number;
   hidden_closed: number;
+  /** Spokes 0.14.0+: where this page starts. Absent on an older Spokes (no paging). */
+  offset?: number;
+  /** Spokes 0.13.0+: the match mode used. */
+  match?: "best" | "any" | "all";
+  /** Spokes 0.13.0+: weaker matches Spokes left out (not in `total`). */
+  weaker_hidden?: number;
   results: SearchHit[];
 }
 

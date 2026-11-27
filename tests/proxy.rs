@@ -466,6 +466,11 @@ async fn bad_parameters_never_reach_upstream() {
         "/api/servers/Hist/search?q=a&limit=0",
         "/api/servers/Hist/search?q=a&limit=51",
         "/api/servers/Hist/search?q=a&limit=x",
+        "/api/servers/Hist/search?q=a&offset=-1",
+        "/api/servers/Hist/search?q=a&offset=10001",
+        "/api/servers/Hist/search?q=a&offset=x",
+        "/api/servers/Hist/search?q=a&match=some",
+        "/api/servers/Hist/search?q=a&match=",
         "/api/servers/Hist/search?q=a&include_closed=maybe",
         "/api/servers/Hist/search?q=a&scope=banana",
         "/api/servers/Hist/search?q=a&root=1",
@@ -576,6 +581,28 @@ async fn search_is_passed_through_with_canonical_parameters() {
         vec![
             "/api/search?q=fuzy%20serch&limit=5&include_closed=true&scope=4",
             "/api/search?q=a%26b%3Dc%2B%C3%A9",
+        ]
+    );
+}
+
+#[tokio::test]
+async fn search_forwards_offset_and_match_only_when_sent() {
+    let env = start().await;
+    for u in [
+        "/api/servers/Hist/search?q=a&offset=0&match=all",
+        "/api/servers/Hist/search?q=a&offset=10000&match=any&limit=10",
+        "/api/servers/Hist/search?q=a",
+        "/api/servers/Hist/search?q=a&match=BEST",
+    ] {
+        assert_eq!(env.get(u).await.status(), StatusCode::OK);
+    }
+    assert_eq!(
+        env.seen(),
+        vec![
+            "/api/search?q=a&offset=0&match=all",
+            "/api/search?q=a&limit=10&offset=10000&match=any",
+            "/api/search?q=a",
+            "/api/search?q=a&match=best",
         ]
     );
 }

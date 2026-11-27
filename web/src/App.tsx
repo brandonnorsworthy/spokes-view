@@ -39,6 +39,7 @@ import {
   ROOT_ID,
 } from "./treeStore";
 import { Search } from "./Search";
+import { togglesForHit } from "./search";
 import type { SearchHit, ServerEntry, Shown, TreeResponse } from "./types";
 
 /** Levels loaded on a server's first load, and per branch opened later. */
@@ -187,70 +188,75 @@ export function App(): ReactElement {
   const store = useMemo(() => buildStore(slices.map((s) => s.data)), [slices]);
 
   // Load (or reload) a server. `keep` keeps expansion and selection (the dropped toggle).
-  const load = useCallback(async (name: string, shown: Shown, keep: boolean) => {
-    const gen = ++generation.current;
-    abort.current?.abort();
-    const ctl = new AbortController();
-    abort.current = ctl;
-    const previous = keep ? slicesRef.current : [];
-    if (!keep) {
-      setReplay(null);
-      setPlaying(false);
-    }
-    setTree({ kind: "loading" });
-    setRefreshError(null);
-    setExpandNote(null);
-    if (!keep) {
-      setSlices([]);
-      setExpanded(new Set());
-      setSelected(null);
-      setDetail(null);
-    }
-    try {
-      const first = await fetchTree(
-        name,
-        { root: ROOT_ID, depth: FIRST_DEPTH, show: shown },
-        null,
-        ctl.signal,
-      );
-      if (gen !== generation.current || !first.data) return;
-      const loaded: Slice[] = [
-        {
-          q: { root: ROOT_ID, depth: FIRST_DEPTH, show: shown },
-          etag: first.etag,
-          data: first.data,
-        },
-      ];
-      // Reload the branches that were open, with the new dropped setting.
-      const branches = previous.slice(1).map((s) => ({ ...s.q, show: shown }));
-      const got = await pool(
-        branches.map((q) => async () => {
-          try {
-            const r = await fetchTree(name, q, null, ctl.signal);
-            return r.data ? { q, etag: r.etag, data: r.data } : null;
-          } catch (e) {
-            if (isAbort(e)) throw e;
-            return null;
-          }
-        }),
-        4,
-      );
-      if (gen !== generation.current) return;
-      for (const s of got) if (s) loaded.push(s);
-      setSlices(loaded);
+  const load = useCallback(
+    async (name: string, shown: Shown, keep: boolean): Promise<Slice[] | null> => {
+      const gen = ++generation.current;
+      abort.current?.abort();
+      const ctl = new AbortController();
+      abort.current = ctl;
+      const previous = keep ? slicesRef.current : [];
       if (!keep) {
-        setExpanded(initialExpansion(buildStore(loaded.map((s) => s.data))));
-        setFitKey((k) => k + 1);
+        setReplay(null);
+        setPlaying(false);
       }
-      setTree({ kind: "ready" });
-      const now = new Date();
-      setChangedAt(now);
-      setCheckedAt(now);
-    } catch (e) {
-      if (isAbort(e) || gen !== generation.current) return;
-      setTree({ kind: "error", error: errorOf(e) });
-    }
-  }, []);
+      setTree({ kind: "loading" });
+      setRefreshError(null);
+      setExpandNote(null);
+      if (!keep) {
+        setSlices([]);
+        setExpanded(new Set());
+        setSelected(null);
+        setDetail(null);
+      }
+      try {
+        const first = await fetchTree(
+          name,
+          { root: ROOT_ID, depth: FIRST_DEPTH, show: shown },
+          null,
+          ctl.signal,
+        );
+        if (gen !== generation.current || !first.data) return null;
+        const loaded: Slice[] = [
+          {
+            q: { root: ROOT_ID, depth: FIRST_DEPTH, show: shown },
+            etag: first.etag,
+            data: first.data,
+          },
+        ];
+        // Reload the branches that were open, with the new dropped setting.
+        const branches = previous.slice(1).map((s) => ({ ...s.q, show: shown }));
+        const got = await pool(
+          branches.map((q) => async () => {
+            try {
+              const r = await fetchTree(name, q, null, ctl.signal);
+              return r.data ? { q, etag: r.etag, data: r.data } : null;
+            } catch (e) {
+              if (isAbort(e)) throw e;
+              return null;
+            }
+          }),
+          4,
+        );
+        if (gen !== generation.current) return null;
+        for (const s of got) if (s) loaded.push(s);
+        setSlices(loaded);
+        if (!keep) {
+          setExpanded(initialExpansion(buildStore(loaded.map((s) => s.data))));
+          setFitKey((k) => k + 1);
+        }
+        setTree({ kind: "ready" });
+        const now = new Date();
+        setChangedAt(now);
+        setCheckedAt(now);
+        return loaded;
+      } catch (e) {
+        if (isAbort(e) || gen !== generation.current) return null;
+        setTree({ kind: "error", error: errorOf(e) });
+        return null;
+      }
+    },
+    [],
+  );
 
   // Picking a server loads it from scratch (done and dropped nodes hidden again).
   const choose = useCallback(
@@ -373,12 +379,14 @@ export function App(): ReactElement {
   );
 
   // Jump to a search hit: load the branches down to it, open them, select and centre it.
+  const shownNow = show;
   const reveal = useCallback(
-    async (hit: SearchHit) => {
+    async (hit: SearchHit, over?: { show: Shown; slices: Slice[] }) => {
       if (!server) return;
       const gen = generation.current;
+      const show = over?.show ?? shownNow;
       const chain = [...hit.path.map((c) => c.id), hit.id];
-      let work = slicesRef.current;
+      let work = over?.slices ?? slicesRef.current;
       const tried = new Set<number>();
       try {
         for (;;) {
@@ -421,7 +429,23 @@ export function App(): ReactElement {
           setRefreshError(`Could not show ${spokeId(hit.id)}: ${errorOf(e).message}`);
       }
     },
-    [server, show, loadDetail],
+    [server, shownNow, loadDetail],
+  );
+
+  // Picking a hit that "Show done" / "Show dropped" hide ticks those boxes first, reloads
+  // the tree under them, and then jumps.
+  const pickHit = useCallback(
+    async (hit: SearchHit) => {
+      const next = togglesForHit(hit, show);
+      if (!next || !server) {
+        await reveal(hit);
+        return;
+      }
+      setShow(next);
+      const slices = await load(server, next, true);
+      if (slices) await reveal(hit, { show: next, slices });
+    },
+    [server, show, load, reveal],
   );
 
   // The found node glows once; the glow is dropped after it has played.
@@ -774,7 +798,7 @@ export function App(): ReactElement {
           show={show}
           supported={canSearch(current)}
           disabled={tree.kind !== "ready" || !root || replay !== null}
-          onPick={(hit) => void reveal(hit)}
+          onPick={(hit) => void pickHit(hit)}
         />
         <label className="check">
           <input type="checkbox" checked={show.done} onChange={() => toggleShown("done")} />
