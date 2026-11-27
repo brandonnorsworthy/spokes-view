@@ -1,4 +1,5 @@
 import { useEffect, useState, type ReactElement, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { backlogUrl } from "./backlog";
 import { Icon, type IconName } from "./Icon";
 import { kanbanUrl, treeUrl } from "./kanban";
@@ -26,6 +27,21 @@ interface Props {
   searching?: boolean;
 }
 
+/** The phone layout's breakpoint, the same as the CSS's. */
+const PHONE = "(max-width: 760px)";
+
+/** Whether the screen is phone-sized, following changes (rotation, resizing). */
+function usePhone(): boolean {
+  const [phone, setPhone] = useState(() => window.matchMedia(PHONE).matches);
+  useEffect(() => {
+    const q = window.matchMedia(PHONE);
+    const on = () => setPhone(q.matches);
+    q.addEventListener("change", on);
+    return () => q.removeEventListener("change", on);
+  }, []);
+  return phone;
+}
+
 const TABS: [Tab, string, IconName][] = [
   ["tree", "Tree", "tree"],
   ["board", "Board", "board"],
@@ -49,6 +65,7 @@ export function AppBar({
   searching = false,
 }: Props): ReactElement {
   const [open, setOpen] = useState(false);
+  const phone = usePhone();
 
   useEffect(() => {
     if (!open) return;
@@ -69,6 +86,26 @@ export function AppBar({
     if (t === "backlog") return backlogUrl(server, nodeId);
     return onSearch ? undefined : `${treeUrl(server, nodeId)}&search=1`;
   };
+
+  // On a phone the options are a bottom sheet rendered at the page level, so nothing on the
+  // header (a blur, a transform) can become its containing block and pull it off screen.
+  const sheet = (
+    <div
+      className={`view-options ${open ? "open" : ""}`}
+      role={open ? "dialog" : undefined}
+      aria-label={open ? "View options" : undefined}
+    >
+      <div className="sheet-handle" aria-hidden="true" />
+      <div className="view-options-head">
+        <strong>View options</strong>
+        <button type="button" className="link-btn" onClick={() => setOpen(false)}>
+          Done
+        </button>
+      </div>
+      {options}
+      <p className="view-options-note">Read-only view · changes are made through MCP</p>
+    </div>
+  );
 
   const tabs = (where: "top" | "bottom") => (
     <nav className={where === "top" ? "tabs-top" : "tabbar"} aria-label="Views">
@@ -125,21 +162,7 @@ export function AppBar({
         </div>
         {tabs("top")}
         {extra}
-        <div
-          className={`view-options ${open ? "open" : ""}`}
-          role={open ? "dialog" : undefined}
-          aria-label={open ? "View options" : undefined}
-        >
-          <div className="sheet-handle" aria-hidden="true" />
-          <div className="view-options-head">
-            <strong>View options</strong>
-            <button type="button" className="link-btn" onClick={() => setOpen(false)}>
-              Done
-            </button>
-          </div>
-          {options}
-          <p className="view-options-note">Read-only view · changes are made through MCP</p>
-        </div>
+        {!phone && sheet}
         <button
           type="button"
           className="appbar-more"
@@ -150,6 +173,7 @@ export function AppBar({
           <Icon name="options" size="1.35rem" />
         </button>
       </header>
+      {phone && createPortal(sheet, document.body)}
       {open && <div className="sheet-backdrop options-backdrop" onClick={() => setOpen(false)} />}
       {tabs("bottom")}
     </>

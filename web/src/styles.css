@@ -2202,3 +2202,9 @@ a.btn {
     margin-top: 0.4rem;
   }
 }
+@media (max-width: 760px) {
+  /* The options sheet is rendered at the page level on phones: above the header and tabs. */
+  .view-options {
+    z-index: 50;
+  }
+}
