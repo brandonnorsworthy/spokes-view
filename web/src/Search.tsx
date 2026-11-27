@@ -8,6 +8,7 @@ import {
 } from "react";
 import { ApiError, fetchSearch } from "./api";
 import { STATUS_LABEL, spokeId } from "./format";
+import { hasMore, liveKeywords, matchedChips, mergePage, nextOffset } from "./search";
 import type { SearchHit, SearchResponse, Shown } from "./types";
 
 /** Wait after the last keystroke before asking the server. */
@@ -35,6 +36,22 @@ function pathText(hit: SearchHit): string {
   return below.length > 0 ? below.join(" / ") : "top level";
 }
 
+/** Small chips naming the keywords a hit matched, when it matched only some. */
+function chipsOf(hit: SearchHit, keywords: readonly string[]): ReactElement | null {
+  const chips = matchedChips(hit, keywords);
+  if (chips.length === 0) return null;
+  return (
+    <span className="search-matched">
+      matched:
+      {chips.map((k) => (
+        <span key={k} className="search-chip">
+          {k}
+        </span>
+      ))}
+    </span>
+  );
+}
+
 /**
  * The header search box: fuzzy matches from Spokes' own search as you type, picked with
  * the mouse or the arrow keys and Enter. `/` focuses it from anywhere on the page.
@@ -44,7 +61,10 @@ export function Search({ server, show, supported, disabled, onPick }: SearchProp
   const [results, setResults] = useState<Results>({ kind: "idle" });
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(0);
+  const [moreBusy, setMoreBusy] = useState(false);
   const input = useRef<HTMLInputElement>(null);
+  /** Bumped on every new query, so a page of an older one is dropped. */
+  const token = useRef(0);
   const listId = useId();
   const off = disabled || !supported || !server;
   /** A query worth sending: it has a letter or digit (Spokes refuses one without). */
@@ -70,12 +90,15 @@ export function Search({ server, show, supported, disabled, onPick }: SearchProp
   useEffect(() => {
     if (!server || !searchable) return;
     const q = query.trim();
+    const mine = ++token.current;
     const ctl = new AbortController();
     const t = window.setTimeout(() => {
       setResults((r) => (r.kind === "ready" ? r : { kind: "loading" }));
       fetchSearch(server, q, show, LIMIT, ctl.signal).then(
         (data) => {
+          if (mine !== token.current) return;
           setResults({ kind: "ready", data });
+          setMoreBusy(false);
           setActive(0);
         },
         (e: unknown) => {
@@ -97,6 +120,32 @@ export function Search({ server, show, supported, disabled, onPick }: SearchProp
   const shown: Results = searchable ? results : { kind: "idle" };
   const hits = shown.kind === "ready" ? shown.data.results : [];
 
+  const more = shown.kind === "ready" && hasMore(shown.data);
+  /** The "More results" row sits after the last hit. */
+  const rows = hits.length + (more ? 1 : 0);
+
+  const loadMore = () => {
+    if (shown.kind !== "ready" || !server || moreBusy || !hasMore(shown.data)) return;
+    const base = shown.data;
+    const mine = token.current;
+    setMoreBusy(true);
+    fetchSearch(server, base.query, show, LIMIT, undefined, nextOffset(base)).then(
+      (page) => {
+        if (mine !== token.current) return;
+        setResults({ kind: "ready", data: mergePage(base, page) });
+        setMoreBusy(false);
+      },
+      (e: unknown) => {
+        if (mine !== token.current) return;
+        setMoreBusy(false);
+        setResults({
+          kind: "error",
+          message: e instanceof ApiError ? e.message : "search failed",
+        });
+      },
+    );
+  };
+
   const pick = (hit: SearchHit) => {
     setOpen(false);
     input.current?.blur();
@@ -115,12 +164,17 @@ export function Search({ server, show, supported, disabled, onPick }: SearchProp
     if (e.key === "ArrowDown" || e.key === "ArrowUp") {
       e.preventDefault();
       setOpen(true);
-      if (hits.length === 0) return;
+      if (rows === 0) return;
       const step = e.key === "ArrowDown" ? 1 : -1;
-      setActive((a) => (a + step + hits.length) % hits.length);
+      setActive((a) => (a + step + rows) % rows);
       return;
     }
     if (e.key === "Enter") {
+      if (more && active === hits.length) {
+        e.preventDefault();
+        loadMore();
+        return;
+      }
       const hit = hits[active];
       if (hit) {
         e.preventDefault();
@@ -131,6 +185,13 @@ export function Search({ server, show, supported, disabled, onPick }: SearchProp
 
   const showList = open && shown.kind !== "idle";
   const activeHit = showList ? hits[active] : undefined;
+  const moreId = `${listId}-more`;
+  const activeId =
+    showList && more && active === hits.length
+      ? moreId
+      : activeHit
+        ? `${listId}-${String(activeHit.id)}`
+        : undefined;
 
   return (
     <div className="search">
@@ -149,7 +210,7 @@ export function Search({ server, show, supported, disabled, onPick }: SearchProp
         aria-expanded={showList}
         aria-controls={listId}
         aria-autocomplete="list"
-        aria-activedescendant={activeHit ? `${listId}-${String(activeHit.id)}` : undefined}
+        aria-activedescendant={activeId}
         value={query}
         disabled={off}
         onChange={(e) => {
@@ -191,15 +252,40 @@ export function Search({ server, show, supported, disabled, onPick }: SearchProp
                 aria-hidden="true"
               />
               <span className="search-main">
-                <span className="search-title">{hit.title}</span>
+                <span className="search-title">
+                  {hit.id_match === true && (
+                    <span className="search-idbadge" title="You typed this node's ID">
+                      ID
+                    </span>
+                  )}
+                  {hit.title}
+                </span>
                 <span className="search-path">
                   {spokeId(hit.id)} · {pathText(hit)}
-                  {hit.via && <span className="search-via"> · {hit.via}</span>}
+                  {hit.via && !hit.id_match && <span className="search-via"> · {hit.via}</span>}
                 </span>
+                {shown.kind === "ready" && chipsOf(hit, liveKeywords(shown.data))}
               </span>
             </div>
           ))}
-          {shown.kind === "ready" && shown.data.total > hits.length && (
+          {more && (
+            <div
+              id={moreId}
+              role="option"
+              aria-selected={active === hits.length}
+              className={`search-more ${active === hits.length ? "active" : ""}`}
+              onMouseDown={(e) => {
+                e.preventDefault();
+                loadMore();
+              }}
+              onMouseEnter={() => setActive(hits.length)}
+            >
+              {moreBusy
+                ? "Loading…"
+                : `More results (${String(shown.data.total - hits.length)} left)`}
+            </div>
+          )}
+          {shown.kind === "ready" && !more && shown.data.total > hits.length && (
             <div className="search-note">
               +{shown.data.total - hits.length} more. Add words to narrow it down.
             </div>
