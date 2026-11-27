@@ -983,6 +983,7 @@ export function App(): ReactElement {
           onSelect={select}
           onToggle={(id) => void toggle(id)}
           server={server}
+          onActions={(n, x, y) => setMenu({ id: n.id, x, y, via: "pointer" })}
         />
       )}
       {menu && menuNode && server && (

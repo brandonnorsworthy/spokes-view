@@ -75,6 +75,9 @@ function visibleCentre(svg: SVGSVGElement | null): { x: number; y: number } {
   return { x: w / 2, y: Math.max(h * 0.3, bottom - box.top) / 2 };
 }
 
+/** Radius, in screen pixels, of a node's tap target (a 44px circle). */
+const HIT_PX = 22;
+
 /** How a node's actions were asked for. */
 export type MenuVia = "pointer" | "touch" | "key";
 
@@ -815,6 +818,13 @@ const Nodes = memo(function Nodes({ layout, store, expanded, loading, k, turn }:
             aria-expanded={hasKids ? isOpen : undefined}
           >
             <title>{`${spokeId(n.id)}  ${n.title}\n${describe}`}</title>
+            {/* A finger-sized target: 44px across on screen, never wider than half the
+                node's wedge so neighbours keep their own. */}
+            <circle
+              className="hit"
+              r={Math.max(r * z, Math.min(HIT_PX / k, p.room / 2))}
+              aria-hidden="true"
+            />
             <g transform={Math.abs(z - 1) < 1e-3 ? undefined : `scale(${z.toFixed(3)})`}>
               {prio !== null && p.depth > 0 && (
                 <circle className={`prio p${prio} ${ownPrio ? "own" : "inherited"}`} r={r + 3.5} />
@@ -852,6 +862,7 @@ const Nodes = memo(function Nodes({ layout, store, expanded, loading, k, turn }:
                   aria-hidden="true"
                   transform={`translate(${(Math.cos((deg * Math.PI) / 180) * (r + 10)).toFixed(1)} ${(Math.sin((deg * Math.PI) / 180) * (r + 10)).toFixed(1)})`}
                 >
+                  <circle r={12} className="hit" />
                   <circle r={6} className="toggle-bg" />
                   <path className="toggle-glyph" d={isOpen ? "M-3 0H3" : "M-3 0H3M0 -3V3"} />
                 </g>

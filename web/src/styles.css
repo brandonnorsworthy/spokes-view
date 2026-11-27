@@ -2614,3 +2614,100 @@ a.btn {
 .column-rail {
   text-transform: capitalize;
 }
+
+/* ---------- Details sheet (Release C, SPOKE-1023) ---------- */
+.close.more {
+  display: grid;
+  place-items: center;
+}
+.panel-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.25rem;
+}
+.panel-head .crumbs {
+  flex: 1;
+  min-width: 0;
+}
+@media (max-width: 760px) {
+  /* The details are a sheet you drag between peek, half and full (heights match sheetSnap.ts). */
+  .panel,
+  .modal[data-snap] {
+    transition: height 0.3s var(--ease);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+  .panel[data-snap="peek"],
+  .modal[data-snap="peek"] {
+    height: 150px;
+  }
+  .panel[data-snap="half"],
+  .modal[data-snap="half"] {
+    height: 55dvh;
+  }
+  .panel[data-snap="full"],
+  .modal[data-snap="full"] {
+    height: calc(100dvh - var(--bar-h) - var(--tabbar-h) - 8px);
+  }
+  .panel {
+    padding-top: 0;
+  }
+  .modal[data-snap] {
+    inset: auto 0 0 0;
+    margin: 0;
+    width: 100%;
+    max-width: none;
+    max-height: none;
+    border: none;
+    border-top: 1px solid color-mix(in srgb, var(--line) 70%, transparent);
+    border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  .modal[data-snap] .modal-body {
+    padding-top: 0;
+  }
+  .sheet-grip {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    display: block;
+    width: 100%;
+    height: 1.5rem;
+    margin: 0;
+    padding: 0;
+    border: none;
+    border-radius: 0;
+    background: linear-gradient(var(--bg-2) 70%, transparent);
+    cursor: grab;
+    touch-action: none;
+  }
+  .sheet-grip::after {
+    content: "";
+    display: block;
+    width: 2.5rem;
+    height: 0.35rem;
+    margin: 0.55rem auto 0;
+    border-radius: 999px;
+    background: var(--line);
+  }
+  .panel-head {
+    touch-action: none;
+  }
+  .close {
+    width: var(--tap);
+    height: var(--tap);
+  }
+}
+.column-fold {
+  display: grid;
+  place-items: center;
+}
+.column-rail .icon {
+  color: var(--muted);
+}
+/* Invisible tap targets around tree nodes and their expand toggles (SPOKE-1025). */
+.graph-svg .hit {
+  fill: transparent;
+  stroke: none;
+  pointer-events: all;
+}

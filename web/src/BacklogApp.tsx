@@ -28,6 +28,8 @@ import {
   isEpic,
 } from "./format";
 import { AppBar } from "./AppBar";
+import { treeUrl } from "./kanban";
+import { Search } from "./Search";
 import { OptGroup, Toggle } from "./ViewOptions";
 import type { MenuVia } from "./Graph";
 import { linkActions, NodeActions, useNodeMenu } from "./NodeActions";
@@ -150,6 +152,23 @@ export function BacklogApp({ server, rootId }: Props): ReactElement {
             : undefined
         }
         title={rootNode?.title ?? spokeId(rootId)}
+        extra={
+          // Desktop: the same search box as the tree; a pick opens the tree on that node.
+          // Phones use the Search tab instead.
+          server ? (
+            <div className="appbar-search">
+              <Search
+                server={server}
+                show={show}
+                supported
+                disabled={false}
+                onPick={(hit) => {
+                  window.location.href = treeUrl(server, hit.id);
+                }}
+              />
+            </div>
+          ) : undefined
+        }
         status={
           data
             ? `${filtering ? `${rows.length} of ${outline.length}` : `${outline.length} items`}${
@@ -257,6 +276,7 @@ export function BacklogApp({ server, rootId }: Props): ReactElement {
           onClose={closeDetail}
           onSelect={openDetail}
           actions={(n) => <ViewLinks server={server} node={n} />}
+          onActions={(n, x, y) => setMenu({ id: n.id, x, y, via: "pointer" })}
         />
       )}
       {menu && menuNode && server && (

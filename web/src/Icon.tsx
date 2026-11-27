@@ -42,6 +42,9 @@ const PATHS = {
   ),
   expand: <path d="M8 2v12M5 5l3-3 3 3M5 11l3 3 3-3" />,
   collapse: <path d="M8 2v4M8 10v4M5 3l3 3 3-3M5 13l3-3 3 3M2 8h12" />,
+  // A chevron against a bar: shrink a column to its edge, and the mirror to bring it back.
+  fold: <path d="M11 4 7 8l4 4M4 3v10" />,
+  unfold: <path d="M5 4l4 4-4 4M12 3v10" />,
   details: (
     <>
       <rect x="2" y="2" width="12" height="12" rx="2.5" />
