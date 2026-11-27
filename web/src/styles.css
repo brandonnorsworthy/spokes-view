@@ -1327,10 +1327,6 @@ a.btn {
   .backlog {
     padding: 0.4rem 0.4rem 1.5rem;
   }
-  .backlog .row-meta .mono,
-  .backlog .row-meta .muted {
-    display: none;
-  }
   .board {
     grid-auto-flow: row;
     grid-auto-columns: auto;
@@ -2158,5 +2154,51 @@ a.btn {
     -webkit-backdrop-filter: none;
     backdrop-filter: none;
     background: var(--bg-2);
+  }
+}
+
+/* Backlog rows indent by depth (set as --depth on the row). */
+.backlog .row {
+  padding-left: calc(var(--depth, 0) * 1.25rem + 0.4rem);
+}
+@media (max-width: 760px) {
+  /* On a phone a row never runs off the screen: the indent is smaller and stops growing
+     after six levels, the title wraps on its own line and the chips wrap below it. */
+  .backlog {
+    overflow-x: hidden;
+  }
+  .backlog .row {
+    padding-left: calc(min(var(--depth, 0), 6) * 0.75rem + 0.25rem);
+    align-items: flex-start;
+  }
+  .backlog .twisty {
+    width: 2.25rem;
+    height: 2.75rem;
+    font-size: 1rem;
+  }
+  .backlog .row-main {
+    flex-wrap: wrap;
+    row-gap: 0.3rem;
+    padding: 0.55rem 0.4rem;
+  }
+  .backlog .row-title {
+    flex: 1 1 calc(100% - 1.5rem);
+    white-space: normal;
+    overflow-wrap: anywhere;
+    line-height: 1.35;
+  }
+  .backlog .row-meta {
+    flex: 1 1 100%;
+    flex-wrap: wrap;
+    min-width: 0;
+    padding-left: 1.1rem;
+  }
+}
+@media (max-width: 760px) {
+  .backlog .row-main {
+    align-items: flex-start;
+  }
+  .backlog .row-main .status-dot {
+    margin-top: 0.4rem;
   }
 }

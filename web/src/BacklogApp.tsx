@@ -3,6 +3,7 @@ import {
   useEffect,
   useMemo,
   useState,
+  type CSSProperties,
   type ReactElement,
   type ReactNode,
 } from "react";
@@ -297,7 +298,7 @@ function BacklogRow({
     <div
       className={`row ${n.deferred ? "deferred" : ""} ${isEpic(n) ? "epic" : ""}`}
       data-status={n.status}
-      style={{ paddingLeft: `${row.depth * 1.25 + 0.4}rem` }}
+      style={{ "--depth": row.depth } as CSSProperties}
     >
       {canToggle ? (
         <button
