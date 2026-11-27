@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Desktop board · Spokes View mockup</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="kit.js"></script>
+</head>
+<body class="h-screen overflow-hidden">
+<div id="app" class="h-full flex flex-col"></div>
+<script>
+// Desktop is the wide version of the same design: the tab bar moves to the top bar, columns
+// sit side by side, a huge column is capped with "show more" and can collapse to a rail,
+// details are a side panel, and right-click opens the same action sheet as a menu.
+const col = (label, tone, list, count, { capped, collapsed } = {}) => collapsed
+  ? `<section class="w-14 shrink-0 rounded-3xl bg-surface/60 border border-line/60 flex flex-col items-center py-3 gap-3 cursor-pointer hover:bg-surface" title="Expand ${label}">
+      <span class="w-2.5 h-2.5 rounded-full bg-${tone}"></span><span class="text-[12px] font-semibold px-1.5 rounded-full bg-${tone}/15 text-${tone}">${count}</span>
+      <span class="[writing-mode:vertical-rl] rotate-180 text-[13px] font-medium">${label}</span></section>`
+  : `<section class="w-[22rem] shrink-0 rounded-3xl bg-surface/60 border border-line/60 flex flex-col min-h-0">
+      <header class="h-12 px-4 flex items-center gap-2"><span class="w-2.5 h-2.5 rounded-full bg-${tone}"></span><span class="font-semibold text-[14px]">${label}</span>
+        <span class="text-[12px] font-semibold px-1.5 rounded-full bg-${tone}/15 text-${tone}">${count}</span>
+        <button class="ml-auto w-8 h-8 rounded-full grid place-items-center text-muted hover:bg-surface2" title="Collapse column">${svg('<path d="M10 3.5 5.5 8l4.5 4.5"/>', "w-4 h-4")}</button></header>
+      <div class="flex-1 overflow-y-auto px-2.5 pb-3 space-y-2.5 no-scrollbar">${list.map((n) => card(n)).join("")}
+        ${capped ? `<button class="w-full h-11 rounded-2xl border border-dashed border-line text-muted text-[13px] font-medium hover:text-ink">Show 50 more · ${capped} left</button>` : ""}</div></section>`;
+
+document.body.classList.remove("phone");
+document.getElementById("app").innerHTML = `
+  <header class="glass h-16 shrink-0 border-b border-line/60 flex items-center gap-4 px-5 z-10">
+    <div class="w-9 h-9 rounded-xl grid place-items-center" style="background:conic-gradient(from 200deg,rgb(var(--accent)),rgb(var(--wait)),rgb(var(--next)),rgb(var(--accent)))"><span class="w-3 h-3 rounded-full bg-bg"></span></div>
+    <div class="leading-tight"><div class="text-[11px] text-muted">Personal › Development</div><div class="font-semibold">Projects</div></div>
+    <nav class="ml-6 flex gap-1 p-1 rounded-2xl bg-surface2/70">
+      ${[["tree", "Tree"], ["board", "Board"], ["backlog", "Backlog"], ["tracked", "Tracked"]].map(([k, l]) => `<a class="h-9 px-3.5 rounded-xl flex items-center gap-2 text-[14px] font-medium ${k === "board" ? "bg-surface shadow text-ink" : "text-muted hover:text-ink"}">${svg(UI[k], "w-4 h-4")}${l}</a>`).join("")}
+    </nav>
+    <div class="flex-1 max-w-md ml-auto h-10 rounded-xl bg-surface2/70 flex items-center gap-2 px-3 text-muted text-[14px]">${svg(UI.search, "w-4 h-4")}Search names, notes, SPOKE-N <kbd class="ml-auto text-[11px] border border-line rounded px-1.5">/</kbd></div>
+    <div class="h-10 px-3 rounded-xl bg-surface2/70 flex items-center gap-2 text-[13px]"><span class="w-2 h-2 rounded-full bg-done"></span>Home</div>
+    <button class="h-10 px-3 rounded-xl bg-surface2/70 flex items-center gap-2 text-[13px]">${svg(UI.filter, "w-4 h-4")}View</button>
+  </header>
+  <div class="flex-1 min-h-0 flex">
+    <main class="flex-1 min-w-0 flex gap-3 p-4 overflow-x-auto">
+      ${col("Open", "open", DATA.filter((n) => n.s === "open").slice(0, 6), 251, { capped: 245 })}
+      ${col("In progress", "prog", DATA.filter((n) => n.s === "in_progress"), 5)}
+      ${col("Waiting", "wait", [], 2, { collapsed: true })}
+    </main>
+    <aside class="w-[26rem] shrink-0 border-l border-line/60 bg-surface flex flex-col">
+      <div class="p-5 pb-3"><div class="flex items-center text-[12px] text-muted"><span class="flex-1">Projects › Spokes View</span><button class="w-8 h-8 rounded-full grid place-items-center hover:bg-surface2">${svg(UI.more, "w-5 h-5")}</button><button class="w-8 h-8 rounded-full grid place-items-center hover:bg-surface2">${svg(UI.close, "w-4 h-4")}</button></div>
+        <h2 class="text-[20px] font-semibold leading-snug mt-1">Epic: mobile-first design overhaul of Spokes View</h2>
+        <div class="flex gap-1.5 mt-2"><span class="inline-flex items-center gap-1 text-[11px] font-semibold px-1.5 h-5 rounded-md text-prog bg-prog/15"><span class="w-1.5 h-1.5 rounded-full bg-prog"></span>In progress</span>${typeChip("epic")}${refChip("planned")}</div></div>
+      <div class="px-5 overflow-y-auto text-[14px] space-y-4 pb-6">
+        <div class="h-2.5 rounded-full bg-surface2 overflow-hidden flex"><span class="bg-done w-[9%]"></span><span class="bg-prog w-[9%]"></span></div>
+        <dl class="grid grid-cols-[7rem_1fr] gap-y-2"><dt class="text-muted">ID</dt><dd class="font-mono">SPOKE-1017</dd><dt class="text-muted">Claimed by</dt><dd>opus-mobile · until 23:37</dd><dt class="text-muted">Progress</dt><dd>2 of 22 done</dd></dl>
+        <div><h3 class="text-[12px] uppercase tracking-wider text-muted font-semibold mb-1">Notes</h3><p class="leading-relaxed">Goal: redesign Spokes View mobile-first, so the phone is the primary target and desktop is the wide layout of the same design.</p></div>
+      </div>
+    </aside>
+  </div>
+  ${sheets()}`;
+wire();
+// On desktop the action sheet is a menu at the pointer instead of a bottom sheet.
+</script>
+</body>
+</html>

@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Tracked · Spokes View mockup</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="kit.js"></script>
+</head>
+<body>
+<div id="app"></div>
+<script>
+// Tracked (Release E, needs Spokes 0.15.0): nodes an agent marked tracked through MCP, with
+// progress by status. Tap a row to open its board; hold for the other actions.
+const tracked = [
+  { id: 1017, t: "Mobile-first design overhaul of Spokes View", path: "Projects › Spokes View", done: 2, prog: 2, open: 18, next: "Design mobile-first mockups for every view", ty: "epic" },
+  { id: 6, t: "Compatibility layer: the shooter game playable on Linux", path: "Projects", done: 61, prog: 3, open: 24, next: "6.6 Bench proof of the whole geometry path", ty: "epic" },
+  { id: 980, t: "Search: find by id, rank by rarer keywords, paging", path: "Projects › Spokes", done: 14, prog: 0, open: 0, next: null, ty: "epic" },
+];
+byId[6] = { id: 6, t: tracked[1].t, s: "in_progress", ty: "epic", path: "Projects", prog: [61, 88] };
+byId[980] = { id: 980, t: tracked[2].t, s: "open", ty: "epic", path: "Projects › Spokes", prog: [14, 14] };
+const row = (x) => {
+  const total = x.done + x.prog + x.open;
+  const pct = (k) => `${(x[k] / total) * 100}%`;
+  const complete = x.open + x.prog === 0;
+  return `<a href="board.html" data-node="${x.id}" class="press block rounded-3xl bg-surface border border-line/70 p-4">
+    <div class="flex items-start gap-3">
+      <div class="w-11 h-11 rounded-2xl shrink-0 grid place-items-center" style="background:rgb(var(--t-epic)/.14);color:rgb(var(--t-epic))">${svg(ICON.epic, "w-6 h-6")}</div>
+      <div class="min-w-0 flex-1"><div class="text-[11px] text-muted truncate">${x.path} · <span class="font-mono">SPOKE-${x.id}</span></div>
+        <div class="text-[16px] font-semibold leading-snug">${x.t}</div></div>
+      <span class="text-muted mt-3">${svg(UI.chevron, "w-4 h-4")}</span></div>
+    <div class="mt-3 h-2.5 rounded-full bg-surface2 overflow-hidden flex">
+      <span class="bg-done" style="width:${pct("done")}"></span><span class="bg-prog" style="width:${pct("prog")}"></span></div>
+    <div class="mt-2 flex items-center gap-3 text-[12px]">
+      <span class="font-semibold ${complete ? "text-done" : ""}">${complete ? "All done" : `${Math.round((x.done / total) * 100)}%`}</span>
+      <span class="text-muted inline-flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full bg-done"></span>${x.done} done</span>
+      <span class="text-muted inline-flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full bg-prog"></span>${x.prog} in progress</span>
+      <span class="text-muted inline-flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full bg-open"></span>${x.open} open</span></div>
+    ${x.next ? `<div class="mt-3 pt-3 border-t border-line/60 text-[13px] flex gap-2"><span class="text-next font-semibold shrink-0">Next</span><span class="truncate">${x.next}</span></div>` : ""}
+  </a>`;
+};
+mount({
+  active: "tracked",
+  title: "Tracked",
+  crumb: "Home · tracked through MCP",
+  body: `
+  <main class="absolute inset-0 pt-14 pb-20 overflow-y-auto no-scrollbar">
+    <div class="p-3 space-y-3">${tracked.map(row).join("")}
+      <p class="text-center text-[12px] text-muted px-6 pt-2">To track something, ask an agent: <span class="font-mono text-ink">“track SPOKE-1017”</span>. Spokes View only reads.</p></div>
+  </main>`,
+});
+// Tracked rows open the board on tap; keep long-press for actions but skip the details sheet.
+document.getElementById("app").addEventListener("click", (e) => { if (e.target.closest("a[data-node]")) e.stopPropagation(); }, true);
+</script>
+</body>
+</html>
