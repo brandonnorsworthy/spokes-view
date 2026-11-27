@@ -34,6 +34,7 @@ const KNOWN_CODES: readonly ErrorCode[] = [
   "too_old",
   "history_unsupported",
   "search_unsupported",
+  "tracked_unsupported",
   "upstream_error",
 ];
 
