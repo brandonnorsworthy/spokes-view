@@ -16,6 +16,8 @@ const PATHS = {
     </>
   ),
   backlog: <path d="M2 3h12M4.5 8H14M7 13h7" />,
+  // A bookmark: the nodes you follow.
+  tracked: <path d="M4 1.8h8v12.4l-4-3-4 3Z" />,
   search: (
     <>
       <circle cx="7" cy="7" r="4.5" />

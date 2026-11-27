@@ -7,10 +7,12 @@
 //! - `GET /api/servers/{name}/nodes/{id}?include_closed=&include_dropped=`: one node with notes.
 //!
 //! - `GET /api/servers/{name}/history?root=`: the replay history of a subtree (Spokes 0.4.0+).
+//! - `GET /api/servers/{name}/tracked`: the nodes marked tracked through MCP, with their
+//!   progress (Spokes 0.15.0+).
 //! - `GET /api/servers/{name}/search?q=&limit=&offset=&match=&include_closed=&include_dropped=&scope=`: fuzzy search (Spokes 0.5.0+).
 //!
 //! Errors are `{"error": "...", "code": "..."}` with `code` one of `bad_request`,
-//! `unknown_server`, `not_found`, `unreachable`, `too_old`, `history_unsupported`,
+//! `unknown_server`, `not_found`, `unreachable`, `too_old`, `history_unsupported`, `tracked_unsupported`,
 //! `search_unsupported`, `upstream_error`.
 
 use std::collections::HashMap;
@@ -69,6 +71,7 @@ pub fn router(state: AppState) -> Router {
         .route("/servers/{name}/tree", get(tree))
         .route("/servers/{name}/nodes/{id}", get(node))
         .route("/servers/{name}/history", get(history))
+        .route("/servers/{name}/tracked", get(tracked))
         .route("/servers/{name}/search", get(search))
         .fallback(|| async { not_found() })
         .method_not_allowed_fallback(|| async {
@@ -431,6 +434,37 @@ async fn history(
             HISTORY_UNSUPPORTED,
         ),
         e => upstream_error(server, e, &what),
+    })
+}
+
+/// Shown when a Spokes server answers `/api/tracked` with "no such endpoint".
+const TRACKED_UNSUPPORTED: &str = "this Spokes server is older than 0.15.0 and has no tracked list";
+
+/// The nodes marked tracked through MCP, with their progress. Takes no parameters.
+async fn tracked(
+    State(state): State<AppState>,
+    Path(name): Path<String>,
+    headers: HeaderMap,
+    query: Result<Query<Vec<(String, String)>>, QueryRejection>,
+) -> Result<Response, ApiError> {
+    let server = state.server(&name)?;
+    params(query, &[])?;
+    upstream::get(
+        &state.client,
+        server,
+        "/api/tracked",
+        if_none_match(&headers).as_ref(),
+        accepts_gzip(&headers),
+    )
+    .await
+    .map(pass)
+    .map_err(|e| match e {
+        UpstreamError::NotFound(msg) if upstream::is_missing_endpoint(&msg) => ApiError::new(
+            StatusCode::BAD_GATEWAY,
+            "tracked_unsupported",
+            TRACKED_UNSUPPORTED,
+        ),
+        e => upstream_error(server, e, "the tracked list"),
     })
 }
 

@@ -1,11 +1,12 @@
 import { useEffect, useState, type ReactElement, type ReactNode } from "react";
 import { createPortal } from "react-dom";
+import { trackedUrl } from "./tracked";
 import { usePhone } from "./usePhone";
 import { backlogUrl } from "./backlog";
 import { Icon, type IconName } from "./Icon";
 import { kanbanUrl, treeUrl } from "./kanban";
 
-export type Tab = "tree" | "board" | "backlog" | "search";
+export type Tab = "tree" | "board" | "backlog" | "search" | "tracked";
 
 interface Props {
   server: string | null;
@@ -38,6 +39,7 @@ const TABS: [Tab, string, IconName][] = [
   ["board", "Board", "board"],
   ["backlog", "Backlog", "backlog"],
   ["search", "Search", "search"],
+  ["tracked", "Tracked", "tracked"],
 ];
 
 /**
@@ -83,6 +85,7 @@ export function AppBar({
     if (t === "tree") return treeUrl(server, nodeId);
     if (t === "board") return kanbanUrl(server, nodeId);
     if (t === "backlog") return backlogUrl(server, nodeId);
+    if (t === "tracked") return trackedUrl(server);
     return onSearch ? undefined : `${treeUrl(server, nodeId)}&search=1`;
   };
 

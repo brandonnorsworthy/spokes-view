@@ -5,6 +5,7 @@ import type {
   SearchResponse,
   ServerEntry,
   Shown,
+  TrackedResponse,
   TreeResponse,
 } from "./types";
 
@@ -33,6 +34,7 @@ const KNOWN_CODES: readonly ErrorCode[] = [
   "too_old",
   "history_unsupported",
   "search_unsupported",
+  "tracked_unsupported",
   "upstream_error",
 ];
 
@@ -131,6 +133,15 @@ export async function fetchHistory(
 }
 
 /** Ranked matches for `query` (Spokes 0.5.0+): typos, aliases and notes count. */
+/** The nodes marked tracked through MCP, with progress (Spokes 0.15.0+). */
+export function fetchTracked(
+  server: string,
+  etag: string | null,
+  signal?: AbortSignal,
+): Promise<Fetched<TrackedResponse>> {
+  return getJson<TrackedResponse>(`/api/servers/${enc(server)}/tracked`, etag, signal);
+}
+
 export async function fetchSearch(
   server: string,
   query: string,

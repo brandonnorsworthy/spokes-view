@@ -142,6 +142,40 @@ async fn stub_search(State(log): State<Log>, RawQuery(q): RawQuery, h: HeaderMap
         .into_response()
 }
 
+async fn stub_tracked(State(log): State<Log>, RawQuery(q): RawQuery, h: HeaderMap) -> Response {
+    record(&log, "/api/tracked", &q, &h);
+    let body = json!({
+        "time_zone": "America/Chicago", "today": "2026-11-27",
+        "nodes": [{"node": {"id": 1017, "title": "Epic", "tracked": true},
+                   "path": [{"id": 1, "title": "To do"}],
+                   "progress": {"done": 2, "in_progress": 1, "total": 9},
+                   "tracked_at": "2026-11-27T08:00:00Z"}]
+    });
+    ([(header::ETAG, TAG)], axum::Json(body)).into_response()
+}
+
+/// Like Spokes, compresses error bodies when gzip is accepted (the body here is not real
+/// gzip: the service must not try to read it, only ask again for the plain text).
+async fn gzip_missing_endpoint(h: HeaderMap) -> Response {
+    let gzip = h
+        .get(header::ACCEPT_ENCODING)
+        .and_then(|v| v.to_str().ok())
+        .is_some_and(|v| v.contains("gzip"));
+    if gzip {
+        (
+            StatusCode::NOT_FOUND,
+            [
+                (header::CONTENT_TYPE, "application/json"),
+                (header::CONTENT_ENCODING, "gzip"),
+            ],
+            vec![0x1f_u8, 0x8b, 0x08, 0x00, 0xde, 0xad],
+        )
+            .into_response()
+    } else {
+        json_error(StatusCode::NOT_FOUND, "no such endpoint; use /api/tree")
+    }
+}
+
 async fn spawn(router: Router) -> SocketAddr {
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
@@ -156,6 +190,7 @@ async fn new_spokes(log: Log) -> SocketAddr {
             .route("/health", get(|| async { "ok" }))
             .route("/api/tree", get(stub_tree))
             .route("/api/nodes/{id}", get(stub_node))
+            .route("/api/tracked", get(gzip_missing_endpoint))
             .route(
                 "/api/history",
                 get(|| async {
@@ -188,6 +223,7 @@ async fn history_spokes(log: Log) -> SocketAddr {
             .route("/api/tree", get(stub_tree))
             .route("/api/history", get(stub_history))
             .route("/api/search", get(stub_search))
+            .route("/api/tracked", get(stub_tracked))
             .fallback(|| async { json_error(StatusCode::NOT_FOUND, "no such endpoint") })
             .with_state(log),
     )
@@ -645,4 +681,54 @@ async fn search_errors() {
     assert_eq!(v["code"], "too_old");
     let (_, v) = env.json("/api/servers/Dead/search?q=abc").await;
     assert_eq!(v["code"], "unreachable");
+}
+
+#[tokio::test]
+async fn tracked_is_passed_through_and_old_servers_say_so() {
+    let env = start().await;
+    let (status, v) = env.json("/api/servers/Hist/tracked").await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(v["nodes"][0]["node"]["id"], 1017);
+    assert_eq!(v["nodes"][0]["progress"]["total"], 9);
+    assert!(
+        env.seen().contains(&"/api/tracked".to_string()),
+        "{:?}",
+        env.seen()
+    );
+
+    // It takes no parameters; anything else is refused before reaching Spokes.
+    let before = env.seen().len();
+    let (status, v) = env.json("/api/servers/Hist/tracked?root=1").await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    assert_eq!(v["code"], "bad_request");
+    assert_eq!(env.seen().len(), before);
+
+    // A Spokes older than 0.15.0 answers "no such endpoint".
+    let (status, v) = env.json("/api/servers/New/tracked").await;
+    assert_eq!(status, StatusCode::BAD_GATEWAY);
+    assert_eq!(v["code"], "tracked_unsupported");
+    assert_eq!(
+        v["error"],
+        "this Spokes server is older than 0.15.0 and has no tracked list"
+    );
+    let (_, v) = env.json("/api/servers/Old/tracked").await;
+    assert_eq!(v["code"], "too_old");
+    let (_, v) = env.json("/api/servers/Dead/tracked").await;
+    assert_eq!(v["code"], "unreachable");
+}
+
+#[tokio::test]
+async fn a_gzipped_missing_endpoint_is_still_recognised() {
+    // Browsers always accept gzip; Spokes then compresses its 404 "no such endpoint" too.
+    let env = start().await;
+    let r = env
+        .http
+        .get(format!("{}/api/servers/New/tracked", env.base))
+        .header(header::ACCEPT_ENCODING, "gzip")
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(r.status(), StatusCode::BAD_GATEWAY);
+    let v: Value = serde_json::from_slice(&r.bytes().await.unwrap()).unwrap();
+    assert_eq!(v["code"], "tracked_unsupported", "{v}");
 }

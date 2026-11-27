@@ -107,7 +107,18 @@ pub async fn get(
             // Spokes 0.2.0+ answers an unknown node with a JSON error; a 0.1.0 server
             // has no /api at all and answers with an empty, untyped 404.
             if is_json(res.headers()) {
-                let body = read_body(&mut res).await.unwrap_or_default();
+                let gzipped = res
+                    .headers()
+                    .get(header::CONTENT_ENCODING)
+                    .is_some_and(|v| v.as_bytes().eq_ignore_ascii_case(b"gzip"));
+                let body = if gzipped {
+                    // The error text decides what the page says ("no such endpoint" means
+                    // this Spokes is too old for the route), and this binary passes gzip
+                    // through without decoding it: ask again, uncompressed, to read it.
+                    plain_body(client, server, path).await
+                } else {
+                    read_body(&mut res).await.unwrap_or_default()
+                };
                 Err(UpstreamError::NotFound(error_text(&body)))
             } else {
                 Err(classify_missing_api(client, server).await)
@@ -121,6 +132,19 @@ pub async fn get(
             s.as_u16()
         ))),
     }
+}
+
+/// The body of a GET asked for uncompressed (for an error whose text must be read), or empty.
+async fn plain_body(client: &reqwest::Client, server: &Server, path: &str) -> Bytes {
+    let Ok(mut res) = client
+        .get(format!("{}{path}", server.base))
+        .header(header::ACCEPT_ENCODING, "identity")
+        .send()
+        .await
+    else {
+        return Bytes::new();
+    };
+    read_body(&mut res).await.unwrap_or_default()
 }
 
 /// The `error` string of a Spokes JSON error body, or empty.
