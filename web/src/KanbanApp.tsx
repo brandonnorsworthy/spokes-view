@@ -1,6 +1,27 @@
-import { useEffect, useMemo, useState, type ReactElement, type ReactNode } from "react";
+import {
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactElement,
+  type ReactNode,
+} from "react";
 import { clock, markers, spokeId, isEpic } from "./format";
-import { buildBoard, GROUP_PARAM, groupingFrom, type Card, type Grouping } from "./kanban";
+import {
+  buildBoard,
+  CARD_PAGE,
+  collapsedFrom,
+  COLUMN_PARAM,
+  GROUP_PARAM,
+  groupingFrom,
+  initialColumn,
+  withCollapsed,
+  type Card,
+  type Grouping,
+} from "./kanban";
+import { usePhone } from "./usePhone";
+import { replaceQuery } from "./urlState";
 import { AppBar } from "./AppBar";
 import { OptGroup, Segmented, Toggle } from "./ViewOptions";
 import type { MenuVia } from "./Graph";
@@ -37,7 +58,10 @@ export function KanbanApp({ server, rootId }: Props): ReactElement {
     const url = new URL(window.location.href);
     if (next === "refinement") url.searchParams.set(GROUP_PARAM, "refinement");
     else url.searchParams.delete(GROUP_PARAM);
+    // New columns: a phone starts again from the default column.
+    url.searchParams.delete(COLUMN_PARAM);
     window.history.replaceState(window.history.state, "", url);
+    setRequested(null);
   };
 
   const [menu, setMenu] = useState<{ id: number; x: number; y: number; via: MenuVia } | null>(null);
@@ -46,6 +70,55 @@ export function KanbanApp({ server, rootId }: Props): ReactElement {
   const nodesById = useMemo(() => new Map(data?.nodes.map((n) => [n.id, n])), [data]);
   const menuNode = menu ? nodesById.get(menu.id) : undefined;
   const total = board.reduce((sum, c) => sum + c.cards.length, 0);
+
+  // Phones show one column at a time (tabs above, swipe between); wide screens show them
+  // all, and any can fold to a rail. Big columns show CARD_PAGE cards at a time.
+  const phone = usePhone();
+  const boardRef = useRef<HTMLDivElement>(null);
+  const [requested, setRequested] = useState<string | null>(() =>
+    new URLSearchParams(window.location.search).get(COLUMN_PARAM),
+  );
+  const activeKey = initialColumn(board, requested);
+  const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(() =>
+    collapsedFrom(window.location.search),
+  );
+  const [limits, setLimits] = useState<Record<string, number>>({});
+  const toggleCollapsed = (key: string): void => {
+    const next = new Set(collapsed);
+    if (!next.delete(key)) next.add(key);
+    setCollapsed(next);
+    replaceQuery((p) => withCollapsed(p, next));
+  };
+  const showColumn = (i: number, smooth: boolean): void => {
+    const el = boardRef.current;
+    if (!el) return;
+    el.scrollTo({ left: i * el.clientWidth, behavior: smooth ? "smooth" : "auto" });
+  };
+  const onBoardScroll = (): void => {
+    const el = boardRef.current;
+    if (!el || el.clientWidth === 0) return;
+    const key = board[Math.round(el.scrollLeft / el.clientWidth)]?.key;
+    if (key && key !== activeKey) {
+      setRequested(key);
+      replaceQuery((p) => p.set(COLUMN_PARAM, key));
+    }
+  };
+  // Land on the active column without animating when the board (re)appears on a phone.
+  const landed = useRef<Grouping | null>(null);
+  useLayoutEffect(() => {
+    if (!phone) {
+      landed.current = null;
+      return;
+    }
+    if (landed.current === group || board.length === 0) return;
+    const i = board.findIndex((c) => c.key === activeKey);
+    if (i >= 0) showColumn(i, false);
+    landed.current = group;
+  });
+  // Keep the active tab in view as you swipe.
+  useEffect(() => {
+    document.querySelector(".col-tab.on")?.scrollIntoView({ block: "nearest", inline: "nearest" });
+  }, [activeKey]);
   const today = data?.today ?? "";
 
   useEffect(() => {
@@ -73,35 +146,112 @@ export function KanbanApp({ server, rootId }: Props): ReactElement {
       </Message>
     );
   } else {
+    const label = (col: (typeof board)[number]) => (
+      <>
+        {group === "status" && <span className={`status-dot s-${col.key}`} aria-hidden="true" />}
+        {group === "refinement" && col.key !== "none" && (
+          <span className={`refinement-dot st-${col.key}`} aria-hidden="true" />
+        )}
+        <span className="column-name">{col.label}</span>
+        <span className="count">{col.cards.length}</span>
+      </>
+    );
     body = (
-      <div className="board">
-        {board.map((col) => (
-          <section key={col.key} className="column" aria-label={col.label}>
-            <h2>
-              {group === "status" && (
-                <span className={`status-dot s-${col.key}`} aria-hidden="true" />
-              )}
-              {group === "refinement" && col.key !== "none" && (
-                <span className={`refinement-dot st-${col.key}`} aria-hidden="true" />
-              )}
-              {col.label}
-              <span className="count">{col.cards.length}</span>
-            </h2>
-            <ol className="cards">
-              {col.cards.map((c) => (
-                <li key={c.node.id}>
-                  <KanbanCard
-                    card={c}
-                    today={today}
-                    onOpen={open}
-                    onMenu={(x, y, via) => setMenu({ id: c.node.id, x, y, via })}
-                  />
-                </li>
-              ))}
-            </ol>
-          </section>
-        ))}
-      </div>
+      <>
+        {phone && (
+          <div className="col-tabs" role="tablist" aria-label="Columns">
+            {board.map((col, i) => (
+              <button
+                key={col.key}
+                type="button"
+                role="tab"
+                aria-selected={col.key === activeKey}
+                className={`col-tab ${col.key === activeKey ? "on" : ""}`}
+                onClick={() => showColumn(i, true)}
+              >
+                {label(col)}
+              </button>
+            ))}
+          </div>
+        )}
+        <div
+          ref={boardRef}
+          className="board"
+          onScroll={phone ? onBoardScroll : undefined}
+          style={
+            phone
+              ? undefined
+              : {
+                  gridTemplateColumns: board
+                    .map((c) => (collapsed.has(c.key) ? "3.25rem" : "minmax(16rem, 1fr)"))
+                    .join(" "),
+                }
+          }
+        >
+          {board.map((col) => {
+            const folded = !phone && collapsed.has(col.key);
+            const shown = limits[col.key] ?? CARD_PAGE;
+            return (
+              <section
+                key={col.key}
+                className={`column ${folded ? "collapsed" : ""}`}
+                aria-label={col.label}
+                role={phone ? "tabpanel" : undefined}
+              >
+                {folded ? (
+                  <button
+                    type="button"
+                    className="column-rail"
+                    onClick={() => toggleCollapsed(col.key)}
+                    title={`Show the ${col.label} column`}
+                  >
+                    {label(col)}
+                  </button>
+                ) : (
+                  <>
+                    {!phone && (
+                      <h2>
+                        {label(col)}
+                        <button
+                          type="button"
+                          className="column-fold"
+                          onClick={() => toggleCollapsed(col.key)}
+                          aria-label={`Collapse the ${col.label} column`}
+                          title="Collapse"
+                        >
+                          ‹
+                        </button>
+                      </h2>
+                    )}
+                    <ol className="cards">
+                      {col.cards.slice(0, shown).map((c) => (
+                        <li key={c.node.id}>
+                          <KanbanCard
+                            card={c}
+                            today={today}
+                            onOpen={open}
+                            onMenu={(x, y, via) => setMenu({ id: c.node.id, x, y, via })}
+                          />
+                        </li>
+                      ))}
+                    </ol>
+                    {col.cards.length > shown && (
+                      <button
+                        type="button"
+                        className="show-more"
+                        onClick={() => setLimits((l) => ({ ...l, [col.key]: shown + CARD_PAGE }))}
+                      >
+                        Show {Math.min(CARD_PAGE, col.cards.length - shown)} more ·{" "}
+                        {col.cards.length - shown} left
+                      </button>
+                    )}
+                  </>
+                )}
+              </section>
+            );
+          })}
+        </div>
+      </>
     );
   }
 

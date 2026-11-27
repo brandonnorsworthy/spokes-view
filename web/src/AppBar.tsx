@@ -1,5 +1,6 @@
 import { useEffect, useState, type ReactElement, type ReactNode } from "react";
 import { createPortal } from "react-dom";
+import { usePhone } from "./usePhone";
 import { backlogUrl } from "./backlog";
 import { Icon, type IconName } from "./Icon";
 import { kanbanUrl, treeUrl } from "./kanban";
@@ -27,21 +28,6 @@ interface Props {
   /** The Search tab: a page with its own search opens it, others go to the tree's. */
   onSearch?: () => void;
   searching?: boolean;
-}
-
-/** The phone layout's breakpoint, the same as the CSS's. */
-const PHONE = "(max-width: 760px)";
-
-/** Whether the screen is phone-sized, following changes (rotation, resizing). */
-function usePhone(): boolean {
-  const [phone, setPhone] = useState(() => window.matchMedia(PHONE).matches);
-  useEffect(() => {
-    const q = window.matchMedia(PHONE);
-    const on = () => setPhone(q.matches);
-    q.addEventListener("change", on);
-    return () => q.removeEventListener("change", on);
-  }, []);
-  return phone;
 }
 
 const TABS: [Tab, string, IconName][] = [
