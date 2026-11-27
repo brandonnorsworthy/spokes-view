@@ -18,6 +18,7 @@ import {
   type TreeQuery,
 } from "./api";
 import { AppBar } from "./AppBar";
+import { OptGroup, ServerPicker, Toggle } from "./ViewOptions";
 import { DetailPanel, type DetailState } from "./DetailPanel";
 import { clock, spokeId } from "./format";
 import { Graph, type Glow, type MenuVia } from "./Graph";
@@ -168,6 +169,7 @@ export function App(): ReactElement {
   const [found, setFound] = useState<{ id: number; key: number } | null>(null);
   const [glowing, setGlowing] = useState(false);
   const [menu, setMenu] = useState<{ id: number; x: number; y: number; via: MenuVia } | null>(null);
+  const [legendOpen, setLegendOpen] = useState(false);
   // The phone's search: the Search tab opens it over the tree (`search=1` opens it on load).
   const [searching, setSearching] = useState(
     () => new URLSearchParams(window.location.search).get("search") === "1",
@@ -837,88 +839,83 @@ export function App(): ReactElement {
             />
           </div>
         }
+        status={
+          changedAt
+            ? `updated ${clock(changedAt)}${
+                checkedAt && checkedAt.getTime() !== changedAt.getTime()
+                  ? `, checked ${clock(checkedAt)}`
+                  : ""
+              }`
+            : undefined
+        }
         options={
           <>
-            <label className="picker">
-              <span className="sr-only">Server</span>
-              <select
-                value={server ?? ""}
-                onChange={(e) => {
-                  choose(e.target.value);
-                }}
-                disabled={!servers || servers.length === 0}
-              >
-                {(servers ?? []).map((s) => (
-                  <option key={s.name} value={s.name}>
-                    {s.name}
-                    {s.status === "ok"
-                      ? s.version
-                        ? ` (${s.version})`
-                        : ""
-                      : ` (${s.status.replace("_", " ")})`}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="check">
-              <input type="checkbox" checked={show.done} onChange={() => toggleShown("done")} />
-              Show done
-            </label>
-            <label className="check">
-              <input
-                type="checkbox"
+            <OptGroup label="Server">
+              <ServerPicker servers={servers} value={server} onChange={choose} />
+            </OptGroup>
+            <OptGroup label="Show" layout="list">
+              <Toggle label="Done tasks" checked={show.done} onChange={() => toggleShown("done")} />
+              <Toggle
+                label="Dropped tasks"
                 checked={show.dropped}
                 onChange={() => toggleShown("dropped")}
               />
-              Show dropped
-            </label>
-            <button
-              type="button"
-              className="btn"
-              onClick={() => void refresh()}
-              disabled={refreshing || tree.kind === "loading" || replay !== null}
-            >
-              {refreshing ? "Refreshing…" : "Refresh"}
-            </button>
-            <button
-              type="button"
-              className="btn"
-              onClick={() => void expandAll()}
-              disabled={expandingAll || tree.kind !== "ready" || !root || replay !== null}
-            >
-              {expandingAll ? "Expanding…" : "Expand all"}
-            </button>
-            <button
-              type="button"
-              className="btn"
-              onClick={collapseAll}
-              disabled={
-                expandingAll || tree.kind !== "ready" || expanded.size <= 1 || replay !== null
-              }
-            >
-              Collapse all
-            </button>
-            <button
-              type="button"
-              className="btn"
-              onClick={() => void startReplay(selected ?? ROOT_ID)}
-              disabled={tree.kind !== "ready" || !root || replay !== null || !canReplay(current)}
-              title={
-                canReplay(current)
-                  ? selected !== null
-                    ? `Replay the history of ${scopeLabel(selected, store.nodes.get(selected)?.title, selected === ROOT_ID)}`
-                    : "Replay the history of the whole tree (select a node to replay just its branch)"
-                  : "Replay needs Spokes 0.4.0 or later"
-              }
-            >
-              {replay?.kind === "loading" ? "Loading history…" : "Replay"}
-            </button>
-            <span className="updated" aria-live="polite">
-              {changedAt && `Updated ${clock(changedAt)}`}
-              {checkedAt && changedAt && checkedAt.getTime() !== changedAt.getTime()
-                ? ` · checked ${clock(checkedAt)}`
-                : ""}
-            </span>
+            </OptGroup>
+            <OptGroup label="Branches" layout="grid2">
+              <button
+                type="button"
+                className="btn"
+                onClick={() => void expandAll()}
+                disabled={expandingAll || tree.kind !== "ready" || !root || replay !== null}
+              >
+                {expandingAll ? "Expanding…" : "Expand all"}
+              </button>
+              <button
+                type="button"
+                className="btn"
+                onClick={collapseAll}
+                disabled={
+                  expandingAll || tree.kind !== "ready" || expanded.size <= 1 || replay !== null
+                }
+              >
+                Collapse all
+              </button>
+            </OptGroup>
+            <OptGroup layout="grid3">
+              <button
+                type="button"
+                className="btn"
+                onClick={() => void refresh()}
+                disabled={refreshing || tree.kind === "loading" || replay !== null}
+              >
+                {refreshing ? "Refreshing…" : "Refresh"}
+              </button>
+              <button
+                type="button"
+                className="btn"
+                onClick={() => void startReplay(selected ?? ROOT_ID)}
+                data-close-sheet
+                disabled={tree.kind !== "ready" || !root || replay !== null || !canReplay(current)}
+                title={
+                  canReplay(current)
+                    ? selected !== null
+                      ? `Replay the history of ${scopeLabel(selected, store.nodes.get(selected)?.title, selected === ROOT_ID)}`
+                      : "Replay the history of the whole tree (select a node to replay just its branch)"
+                    : "Replay needs Spokes 0.4.0 or later"
+                }
+              >
+                {replay?.kind === "loading" ? "Loading history…" : "Replay"}
+              </button>
+              <button
+                type="button"
+                className="btn opt-phone-only"
+                data-close-sheet
+                onClick={() => setLegendOpen((o) => !o)}
+                disabled={tree.kind !== "ready" || !root}
+              >
+                Legend
+              </button>
+            </OptGroup>
           </>
         }
       />
@@ -967,7 +964,7 @@ export function App(): ReactElement {
             </button>
           </div>
         )}
-        {tree.kind === "ready" && root && <Legend />}
+        {tree.kind === "ready" && root && <Legend open={legendOpen} onToggle={setLegendOpen} />}
         {current && current.status !== "ok" && tree.kind !== "error" && (
           <div className="notice warn floating">{current.message}</div>
         )}

@@ -2208,3 +2208,250 @@ a.btn {
     z-index: 50;
   }
 }
+
+/* ---------- View options (Release A, matches the approved mockup) ----------
+   Wide screens: the groups dissolve and every control sits in the top bar in a row. */
+.opt-group,
+.opt-body {
+  display: contents;
+}
+.opt-label,
+.opt-phone-only {
+  display: none;
+}
+.opt-toggle {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+.opt-toggle input {
+  position: absolute;
+  opacity: 0;
+  width: 1px;
+  height: 1px;
+}
+.switch {
+  position: relative;
+  flex: none;
+  width: 2.25rem;
+  height: 1.3rem;
+  border-radius: 999px;
+  background: var(--line);
+  transition: background 0.2s var(--ease);
+}
+.switch::after {
+  content: "";
+  position: absolute;
+  top: 0.15rem;
+  left: 0.15rem;
+  width: 1rem;
+  height: 1rem;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 30%);
+  transition: transform 0.2s var(--ease);
+}
+.opt-toggle input:checked ~ .switch {
+  background: var(--accent);
+}
+.opt-toggle input:checked ~ .switch::after {
+  transform: translateX(0.95rem);
+}
+.opt-toggle input:focus-visible ~ .switch {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+.segmented {
+  display: inline-grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  padding: 0.2rem;
+  border-radius: calc(var(--radius) + 2px);
+  background: var(--bg-3);
+}
+.segmented button {
+  min-height: 1.9rem;
+  padding: 0 0.8rem;
+  border: none;
+  border-radius: var(--radius);
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.875rem;
+  font-weight: 550;
+  cursor: pointer;
+}
+.segmented button.on {
+  background: var(--bg-2);
+  color: var(--text);
+  box-shadow: 0 1px 3px rgb(0 0 0 / 25%);
+}
+.server-row {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+.server-dot {
+  position: absolute;
+  left: 0.7rem;
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: var(--muted);
+  pointer-events: none;
+}
+.server-dot.ok {
+  background: var(--done);
+}
+.server-dot.bad {
+  background: var(--alert);
+}
+.server-row select {
+  padding-left: 1.6rem;
+}
+
+@media (max-width: 760px) {
+  .view-options {
+    gap: 1.1rem;
+  }
+  .opt-group {
+    display: grid;
+    gap: 0.4rem;
+  }
+  .opt-label {
+    display: block;
+    color: var(--muted);
+    font-size: 0.72rem;
+    font-weight: 650;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+  .opt-phone-only {
+    display: block;
+  }
+  .opt-stack .opt-body {
+    display: grid;
+    gap: 0.5rem;
+  }
+  .opt-list .opt-body {
+    display: grid;
+    border-radius: var(--radius);
+    background: var(--bg-3);
+    overflow: hidden;
+  }
+  .opt-list .opt-toggle + .opt-toggle {
+    border-top: 1px solid color-mix(in srgb, var(--line) 70%, transparent);
+  }
+  .opt-grid2 .opt-body,
+  .opt-grid3 .opt-body {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.5rem;
+  }
+  .opt-grid3 .opt-body {
+    grid-template-columns: repeat(3, 1fr);
+  }
+  .opt-toggle {
+    justify-content: space-between;
+    min-height: 3rem;
+    padding: 0 0.9rem;
+    font-size: 1rem;
+  }
+  .switch {
+    width: 3rem;
+    height: 1.75rem;
+  }
+  .switch::after {
+    top: 0.125rem;
+    left: 0.125rem;
+    width: 1.5rem;
+    height: 1.5rem;
+  }
+  .opt-toggle input:checked ~ .switch::after {
+    transform: translateX(1.25rem);
+  }
+  .segmented {
+    display: grid;
+    padding: 0.25rem;
+  }
+  .segmented button {
+    min-height: 2.5rem;
+    font-size: 0.95rem;
+  }
+  .server-row {
+    display: flex;
+  }
+  .server-dot {
+    left: 0.9rem;
+  }
+  .view-options .server-row select {
+    padding-left: 2rem;
+  }
+  .view-options .opt-grid2 .btn,
+  .view-options .opt-grid3 .btn {
+    background: var(--bg-3);
+    border: none;
+    font-weight: 550;
+    font-size: 0.9rem;
+  }
+  .view-options-head {
+    font-size: 1.1rem;
+  }
+  /* The legend opens from the options sheet on a phone. */
+  .legend-toggle {
+    display: none;
+  }
+}
+@media (max-width: 760px) {
+  .legend.open .legend-toggle {
+    display: block;
+  }
+  .view-options label.opt-toggle,
+  .view-options label.server-row {
+    display: flex;
+    gap: 0;
+  }
+  .view-options label.opt-toggle {
+    gap: 0.5rem;
+  }
+}
+@media (max-width: 760px) {
+  .view-options input[type="search"] {
+    padding: 0 0.9rem;
+    border: 1px solid var(--line);
+    background: var(--bg-3);
+    font-size: 1rem;
+  }
+}
+/* Wide screens: the options stay together; when they don't fit beside the title, tabs and
+   search they move to a second row as a whole. Labels never break mid-word. */
+@media (min-width: 1200px) {
+  .appbar .view-options {
+    flex-wrap: nowrap;
+  }
+}
+@media (min-width: 761px) {
+  .appbar .view-options {
+    gap: 0.5rem 0.6rem;
+  }
+  .opt-toggle,
+  .appbar .updated {
+    white-space: nowrap;
+  }
+  .appbar-search {
+    flex: 0 1 16rem;
+    min-width: 9rem;
+  }
+  .appbar-search .search,
+  .appbar-search input {
+    width: 100%;
+  }
+}
+@media (min-width: 761px) and (max-width: 1499px) {
+  .appbar .updated {
+    display: none;
+  }
+}

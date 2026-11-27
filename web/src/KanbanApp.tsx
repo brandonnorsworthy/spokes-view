@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, type ReactElement, type ReactNode } from 
 import { clock, markers, spokeId, isEpic } from "./format";
 import { buildBoard, GROUP_PARAM, groupingFrom, type Card, type Grouping } from "./kanban";
 import { AppBar } from "./AppBar";
+import { OptGroup, Segmented, Toggle } from "./ViewOptions";
 import type { MenuVia } from "./Graph";
 import { linkActions, NodeActions, useNodeMenu } from "./NodeActions";
 import { NodeModal } from "./NodeModal";
@@ -119,42 +120,40 @@ export function KanbanApp({ server, rootId }: Props): ReactElement {
             : undefined
         }
         title={rootNode?.title ?? spokeId(rootId)}
+        status={
+          data ? `${total} items${checkedAt ? `, checked ${clock(checkedAt)}` : ""}` : undefined
+        }
         options={
           <>
-            <label>
-              <span className="sr-only">Group by</span>
-              <select
+            <OptGroup label="Group columns by">
+              <Segmented
+                label="Group columns by"
                 value={group}
-                onChange={(e) => changeGroup(groupingFrom(`?group=${e.target.value}`))}
-              >
-                <option value="status">Group by status</option>
-                <option value="refinement">Group by refinement</option>
-              </select>
-            </label>
-            <label className="check">
-              <input type="checkbox" checked={show.done} onChange={() => toggleShown("done")} />
-              Show done
-            </label>
-            <label className="check">
-              <input
-                type="checkbox"
+                options={[
+                  ["status", "Status"],
+                  ["refinement", "Refinement"],
+                ]}
+                onChange={changeGroup}
+              />
+            </OptGroup>
+            <OptGroup label="Show" layout="list">
+              <Toggle label="Done tasks" checked={show.done} onChange={() => toggleShown("done")} />
+              <Toggle
+                label="Dropped tasks"
                 checked={show.dropped}
                 onChange={() => toggleShown("dropped")}
               />
-              Show dropped
-            </label>
-            <button
-              type="button"
-              className="btn"
-              onClick={() => void refresh()}
-              disabled={refreshing || !data}
-            >
-              {refreshing ? "Refreshing…" : "Refresh"}
-            </button>
-            <span className="updated" aria-live="polite">
-              {data && `${total} items`}
-              {checkedAt && ` · checked ${clock(checkedAt)}`}
-            </span>
+            </OptGroup>
+            <OptGroup>
+              <button
+                type="button"
+                className="btn"
+                onClick={() => void refresh()}
+                disabled={refreshing || !data}
+              >
+                {refreshing ? "Refreshing…" : "Refresh"}
+              </button>
+            </OptGroup>
           </>
         }
       />

@@ -20,6 +20,8 @@ interface Props {
    * the bar; on a phone they move into a sheet behind the options button.
    */
   options: ReactNode;
+  /** How fresh the view is ("Updated 05:41"): in the bar, or the sheet's footer on a phone. */
+  status?: ReactNode;
   /** Shown in the bar on every screen size, after the title (e.g. the search box). */
   extra?: ReactNode;
   /** The Search tab: a page with its own search opens it, others go to the tree's. */
@@ -60,6 +62,7 @@ export function AppBar({
   crumb,
   title,
   options,
+  status,
   extra,
   onSearch,
   searching = false,
@@ -92,6 +95,10 @@ export function AppBar({
   const sheet = (
     <div
       className={`view-options ${open ? "open" : ""}`}
+      // A control marked data-close-sheet (Replay, Legend) shows something behind the sheet.
+      onClick={(e) => {
+        if ((e.target as Element).closest("[data-close-sheet]")) setOpen(false);
+      }}
       role={open ? "dialog" : undefined}
       aria-label={open ? "View options" : undefined}
     >
@@ -103,7 +110,15 @@ export function AppBar({
         </button>
       </div>
       {options}
-      <p className="view-options-note">Read-only view · changes are made through MCP</p>
+      <p className="view-options-note" aria-live="polite">
+        Read-only view · changes are made through MCP
+        {status && (
+          <>
+            {" · "}
+            {status}
+          </>
+        )}
+      </p>
     </div>
   );
 
@@ -163,6 +178,11 @@ export function AppBar({
         {tabs("top")}
         {extra}
         {!phone && sheet}
+        {!phone && status && (
+          <span className="updated" aria-live="polite">
+            {status}
+          </span>
+        )}
         <button
           type="button"
           className="appbar-more"
