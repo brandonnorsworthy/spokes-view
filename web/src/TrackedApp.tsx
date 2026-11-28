@@ -8,7 +8,7 @@ import { kanbanUrl } from "./kanban";
 import { linkActions, NodeActions, useNodeMenu } from "./NodeActions";
 import { TypeIcon } from "./TypeIcon";
 import type { TrackedEntry, TrackedResponse } from "./types";
-import { percentDone } from "./tracked";
+import { percentDone, sortTracked } from "./tracked";
 import { OptGroup } from "./ViewOptions";
 
 const REFRESH_MS = 30_000;
@@ -81,7 +81,7 @@ export function TrackedApp({ server }: { server: string | null }): ReactElement 
   } else {
     body = (
       <ol className="tracked-list">
-        {data.nodes.map((e) => (
+        {sortTracked(data.nodes).map((e) => (
           <li key={e.node.id}>
             <TrackedCard
               entry={e}

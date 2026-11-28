@@ -21,7 +21,7 @@ The finished product:
 - **Replay:** play a branch's (or the whole tree's) history from its first event, watching it grow, move, get claimed and finish, with each change glowing where it happened.
 - **Find anything:** type part of a name (typos, aliases and words from the notes count) and jump to the node, wherever it is in the tree; filter by status, priority, due date and claims; link straight to a node.
 - **Mobile-first:** designed for the phone first, with desktop as the wide version of the same design. Every action works by touch: a bottom tab bar (Tree, Board, Backlog, Search, Tracked), one action sheet for nodes (long-press, right-click or the ⋯ button), boards with one column at a time and a tab per column on a phone, details in a draggable bottom sheet, pinch and pan on the tree, and filters kept in the URL.
-- **Tracked:** nodes marked tracked through MCP (Spokes 0.15.0+) are listed with their progress, one tap from each board.
+- **Tracked:** nodes marked tracked through MCP (Spokes 0.15.0+) are listed with their progress, one tap from each board. Ones with work still open come first; finished ones (done themselves, or nothing unfinished under them) go to the bottom (0.15.0).
 - **Always read-only:** the viewer never changes the tree. Every edit goes through Spokes' MCP tools.
 - **Later:** authentication, and viewing other trees with the same shape (such as a future Preferences MCP).
 
